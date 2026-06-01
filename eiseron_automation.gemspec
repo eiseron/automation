@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description = "Shared automations (starting with release tagging) used across Eiseron CI and ops pipelines."
   spec.homepage = "https://gitlab.com/eiseron/stack/automation"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.1"
+  spec.required_ruby_version = ">= 3.2"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
@@ -24,7 +24,7 @@ Gem::Specification.new do |spec|
   spec.executables = ["eiseron"]
   spec.require_paths = ["lib"]
 
-  spec.add_development_dependency "minitest", "~> 5.0"
+  spec.add_development_dependency "minitest", "~> 6.0"
   spec.add_development_dependency "rake", "~> 13.0"
-  spec.add_development_dependency "rubocop", "~> 1.60"
+  spec.add_development_dependency "rubocop", "~> 1.87"
 end
