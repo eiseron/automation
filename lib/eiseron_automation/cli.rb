@@ -1,0 +1,52 @@
+# frozen_string_literal: true
+
+module EiseronAutomation
+  # Minimal command dispatcher: `eiseron <namespace> <command>`. Kept
+  # dependency-free (no Thor) so the gem installs from a git ref with no
+  # transitive runtime gems. New automations register one entry in COMMANDS.
+  class CLI
+    COMMANDS = { "release tag" => :release_tag }.freeze
+
+    def initialize(argv, env: ENV, io: $stdout, err: $stderr)
+      @argv = argv
+      @env = env
+      @io = io
+      @err = err
+    end
+
+    def run
+      dispatch([@argv[0], @argv[1]].join(" "))
+      0
+    rescue Error => e
+      @err.puts "FATAL: #{e.message}"
+      1
+    end
+
+    private
+
+    def dispatch(key)
+      handler = COMMANDS[key]
+      raise Error, "unknown command '#{key.strip}'. Available: #{COMMANDS.keys.join(', ')}" unless handler
+
+      send(handler)
+    end
+
+    def release_tag
+      token = require_env("EISERON_STACK_TOKEN")
+      client = GitlabClient.new(
+        api_url: require_env("CI_API_V4_URL"),
+        project_id: require_env("CI_PROJECT_ID"),
+        token: token
+      )
+      release = Release.new(client: client, commit_sha: require_env("CI_COMMIT_SHA"), io: @io)
+      release.tag_from_file(@env.fetch("VERSION_FILE", "VERSION"))
+    end
+
+    def require_env(name)
+      value = @env[name].to_s
+      raise Error, "#{name} is empty" if value.empty?
+
+      value
+    end
+  end
+end
