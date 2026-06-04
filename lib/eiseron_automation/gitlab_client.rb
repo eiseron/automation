@@ -6,8 +6,6 @@ require "net/http"
 require "uri"
 
 module EiseronAutomation
-  # Thin GitLab REST client covering only the calls the release flow needs.
-  # Side-effecting by design: every public method performs one HTTP request.
   class GitlabClient
     def initialize(api_url:, project_id:, token:)
       @base = "#{api_url}/projects/#{project_id}"
@@ -40,9 +38,6 @@ module EiseronAutomation
 
     private
 
-    # CGI.escape percent-encodes path-unsafe characters (notably '*' -> '%2A'),
-    # which URI.encode_www_form_component leaves untouched. Tag names and the
-    # wildcard never contain spaces, so the '+'-for-space difference is moot.
     def encode(value)
       CGI.escape(value)
     end

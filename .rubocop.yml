@@ -1,7 +1,15 @@
+require:
+  - ./rubocop/eiseron/no_comments.rb
+
 AllCops:
   NewCops: enable
   TargetRubyVersion: 3.2
   SuggestExtensions: false
+  Exclude:
+    - rubocop/**/*
+
+Eiseron/NoComments:
+  Enabled: true
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes

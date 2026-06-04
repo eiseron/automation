@@ -3,7 +3,6 @@
 require "test_helper"
 
 module EiseronAutomation
-  # Records calls so the tag flow can be asserted without any HTTP.
   class FakeClient
     attr_reader :calls
 

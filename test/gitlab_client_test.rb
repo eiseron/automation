@@ -4,8 +4,6 @@ require "test_helper"
 require "socket"
 
 module EiseronAutomation
-  # Drives the real Net::HTTP client against an in-process TCP stub so the wire
-  # format (verb, path encoding, auth header, form body) is asserted directly.
   class GitlabClientTest < Minitest::Test
     def setup
       @server = TCPServer.new("127.0.0.1", 0)

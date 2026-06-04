@@ -83,6 +83,10 @@ bundle exec rake test     # minitest
 bundle exec rubocop       # lint
 ```
 
+Lint includes a custom cop, `Eiseron/NoComments` (`rubocop/eiseron/no_comments.rb`),
+which forbids source comments so rationale stays in merge requests; magic
+comments, shebangs, and `rubocop:` directives are allowed.
+
 ## Releasing
 
 Bump `VERSION` in a merge request. On merge to `main`, the `release-tag` job

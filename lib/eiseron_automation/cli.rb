@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module EiseronAutomation
-  # Minimal command dispatcher: `eiseron <namespace> <command>`. Kept
-  # dependency-free (no Thor) so the gem installs from a git ref with no
-  # transitive runtime gems. New automations register one entry in COMMANDS.
   class CLI
     COMMANDS = {
       "release tag" => :release_tag,

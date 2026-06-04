@@ -119,7 +119,7 @@ module EiseronAutomation
     end
 
     def test_deploy_raises_when_a_required_variable_is_missing
-      env = base_env.merge("PREVIEW_MR_IID" => "5") # no PREVIEW_APP_IMAGE
+      env = base_env.merge("PREVIEW_MR_IID" => "5")
       error = assert_raises(Error) { Preview.new(env: env, io: StringIO.new, runner: FakeRunner.new).deploy }
       assert_match(/PREVIEW_APP_IMAGE/, error.message)
     end

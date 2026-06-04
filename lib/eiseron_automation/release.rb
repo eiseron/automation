@@ -1,11 +1,6 @@
 # frozen_string_literal: true
 
 module EiseronAutomation
-  # Resolves a version from a file and creates the matching git tag through the
-  # GitLab API. Tag protection is managed externally (Terraform grants the
-  # release service account the maintainer role on the protected tags), so the
-  # account creates the tag directly and the tag's pipeline runs under an
-  # identity allowed on it. A tag still maps to a reviewed version-file bump.
   class Release
     SEMVER = /\A\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\z/
 
@@ -15,7 +10,6 @@ module EiseronAutomation
       @io = io
     end
 
-    # Pure: returns the validated bare version or raises with a specific reason.
     def self.validate_version(raw)
       version = raw.to_s.strip
       raise Error, "VERSION file is empty" if version.empty?
