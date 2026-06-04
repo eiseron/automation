@@ -2,9 +2,10 @@
 
 module EiseronAutomation
   # Resolves a version from a file and creates the matching git tag through the
-  # GitLab API, lifting and restoring tag protection around the create so a
-  # "no one" protection can be satisfied only by this automated path. A tag
-  # therefore always maps to a reviewed change that bumped the version file.
+  # GitLab API. Tag protection is managed externally (Terraform grants the
+  # release service account the maintainer role on the protected tags), so the
+  # account creates the tag directly and the tag's pipeline runs under an
+  # identity allowed on it. A tag still maps to a reviewed version-file bump.
   class Release
     SEMVER = /\A\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\z/
 
@@ -40,7 +41,9 @@ module EiseronAutomation
       tag = "v#{self.class.validate_version(File.read(path))}"
       return skip(tag) if @client.tag_exists?(tag)
 
-      create_with_protection_lifted(tag)
+      @io.puts "Creating #{tag} at #{@commit_sha}..."
+      @client.create_tag(tag, @commit_sha)
+      @io.puts "Created #{tag}."
       tag
     end
 
@@ -49,17 +52,6 @@ module EiseronAutomation
     def skip(tag)
       @io.puts "Tag #{tag} already exists — nothing to do (idempotent re-run)."
       tag
-    end
-
-    def create_with_protection_lifted(tag)
-      @io.puts "Lifting tag protection..."
-      @client.delete_tag_protection
-      @io.puts "Creating #{tag} at #{@commit_sha}..."
-      @client.create_tag(tag, @commit_sha)
-      @io.puts "Created #{tag}."
-    ensure
-      @client.protect_tags_no_one
-      @io.puts "Restored tag protection (create: no one)."
     end
   end
 end

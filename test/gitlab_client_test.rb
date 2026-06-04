@@ -32,12 +32,6 @@ module EiseronAutomation
       assert_includes request[:body], "ref=deadbeef"
     end
 
-    def test_delete_tag_protection_url_encodes_wildcard
-      @client.delete_tag_protection
-      request = @requests.fetch(0)
-      assert_equal "DELETE /api/v4/projects/123/protected_tags/%2A HTTP/1.1", request[:line]
-    end
-
     def test_tag_exists_is_true_on_success_response
       assert @client.tag_exists?("v0.1.1")
       assert_equal "GET /api/v4/projects/123/repository/tags/v0.1.1 HTTP/1.1", @requests.fetch(0)[:line]

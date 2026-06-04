@@ -17,16 +17,8 @@ module EiseronAutomation
       @exists
     end
 
-    def delete_tag_protection(*)
-      @calls << [:unprotect]
-    end
-
     def create_tag(tag, ref)
       @calls << [:create, tag, ref]
-    end
-
-    def protect_tags_no_one(*)
-      @calls << [:protect]
     end
   end
 
@@ -81,23 +73,18 @@ module EiseronAutomation
       [tag, client]
     end
 
-    def test_creates_tag_lifting_then_restoring_protection_in_order
+    def test_creates_tag_when_absent
       tag, client = run_tag("0.1.1")
       assert_equal "v0.1.1", tag
-      assert_equal(
-        [[:exists?, "v0.1.1"], [:unprotect], [:create, "v0.1.1", "deadbeef"], [:protect]],
-        client.calls
-      )
+      assert_equal([[:exists?, "v0.1.1"], [:create, "v0.1.1", "deadbeef"]], client.calls)
     end
 
     def test_idempotent_when_tag_already_exists
       _tag, client = run_tag("0.1.1", exists: true)
-      verbs = client.calls.map(&:first)
-      refute_includes verbs, :create
-      refute_includes verbs, :unprotect
+      refute_includes client.calls.map(&:first), :create
     end
 
-    def test_restores_protection_even_when_create_fails
+    def test_create_failure_propagates
       File.write(@path, "0.1.1")
       client = FakeClient.new(exists: false)
       def client.create_tag(*)
@@ -107,7 +94,6 @@ module EiseronAutomation
       assert_raises(Error) do
         Release.new(client: client, commit_sha: "x", io: StringIO.new).tag_from_file(@path)
       end
-      assert_includes client.calls.map(&:first), :protect
     end
   end
 end

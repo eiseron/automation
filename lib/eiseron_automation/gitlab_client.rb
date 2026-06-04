@@ -17,16 +17,8 @@ module EiseronAutomation
       http(Net::HTTP::Get, "/repository/tags/#{encode(tag)}").is_a?(Net::HTTPSuccess)
     end
 
-    def delete_tag_protection(wildcard = "*")
-      http(Net::HTTP::Delete, "/protected_tags/#{encode(wildcard)}")
-    end
-
     def create_tag(tag, ref)
       post("/repository/tags", tag_name: tag, ref: ref)
-    end
-
-    def protect_tags_no_one(wildcard = "*")
-      post("/protected_tags", name: wildcard, create_access_level: 0)
     end
 
     private
