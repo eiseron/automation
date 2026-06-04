@@ -37,13 +37,22 @@ module EiseronAutomation
       assert_equal "GET /api/v4/projects/123/repository/tags/v0.1.1 HTTP/1.1", @requests.fetch(0)[:line]
     end
 
+    def test_open_merge_request_iids_accumulates_across_pages
+      @stub_bodies = ['[{"iid":7},{"iid":8}]', "[]"]
+      assert_equal %w[7 8], @client.open_merge_request_iids
+      assert_equal "GET /api/v4/projects/123/merge_requests?state=opened&per_page=100&page=1 HTTP/1.1",
+                   @requests.fetch(0)[:line]
+      assert_equal 2, @requests.length
+    end
+
     private
 
     def serve
       loop do
         socket = @server.accept
         @requests << read_request(socket)
-        socket.print "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}"
+        body = @stub_bodies&.shift || "{}"
+        socket.print "HTTP/1.1 200 OK\r\nContent-Length: #{body.bytesize}\r\n\r\n#{body}"
         socket.close
       end
     rescue IOError, Errno::EBADF

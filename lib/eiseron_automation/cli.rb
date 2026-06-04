@@ -5,7 +5,12 @@ module EiseronAutomation
   # dependency-free (no Thor) so the gem installs from a git ref with no
   # transitive runtime gems. New automations register one entry in COMMANDS.
   class CLI
-    COMMANDS = { "release tag" => :release_tag }.freeze
+    COMMANDS = {
+      "release tag" => :release_tag,
+      "preview deploy" => :preview_deploy,
+      "preview stop" => :preview_stop,
+      "preview sweep" => :preview_sweep
+    }.freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
       @argv = argv
@@ -40,6 +45,18 @@ module EiseronAutomation
       )
       release = Release.new(client: client, commit_sha: require_env("CI_COMMIT_SHA"), io: @io)
       release.tag_from_file(@env.fetch("VERSION_FILE", "VERSION"))
+    end
+
+    def preview_deploy
+      Preview.new(env: @env, io: @io).deploy
+    end
+
+    def preview_stop
+      Preview.new(env: @env, io: @io).stop
+    end
+
+    def preview_sweep
+      Preview.new(env: @env, io: @io).sweep
     end
 
     def require_env(name)

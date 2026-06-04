@@ -42,6 +42,39 @@ Behaviour:
 Used by `stack/ci`'s `release.yml` template, which installs this gem and runs
 the command in consumers' `release` stage.
 
+### `eiseron preview deploy` / `stop` / `sweep`
+
+Per-merge-request preview environments on the shared host. These run from the
+product's **ops repo** (protected scope, where the host credentials live) and
+invoke the `eiseron.provisioning.preview_app` Ansible playbook over SSH, keeping
+the complex orchestration in tested Ruby instead of inline CI shell.
+
+- `deploy` brings MR `$PREVIEW_MR_IID` up: assembles `DATABASE_URL` from the
+  tenant credentials (URL-encoding the password) merged with
+  `PREVIEW_APP_EXTRA_ENV`, then runs the playbook with `state=present`.
+- `stop` tears MR `$PREVIEW_MR_IID` down (`state=absent`).
+- `sweep` reconciles: lists deployed previews (`docker ps`) against the scan
+  project's still-open MRs (GitLab API) and tears down every preview whose MR
+  is no longer open.
+
+Consumed by `stack/ci`'s `preview-deploy.yml` and `preview-sweep.yml` templates.
+
+Environment:
+
+| variable | used by | purpose |
+|----------|---------|---------|
+| `EISERON_PREVIEW_APP` | all | product slug |
+| `EISERON_PREVIEW_SUFFIX` | all | host/name suffix (e.g. `-preview`) |
+| `EISERON_PREVIEW_ZONE` | deploy | preview DNS zone |
+| `EISERON_PREVIEW_PORT` | deploy | app container port (default `4000`) |
+| `EISERON_PREVIEW_DB_SCHEME` / `_DB_HOST` / `_DB_PORT` | deploy | `DATABASE_URL` parts |
+| `EISERON_PREVIEW_SCAN_PROJECT` | sweep | project whose open MRs are kept |
+| `PREVIEW_HOST_IP`, `ANSIBLE_PRIVATE_KEY_FILE` | all | host IP + SSH key path |
+| `PREVIEW_MR_IID` | deploy/stop | the merge request number |
+| `PREVIEW_APP_IMAGE`, `PREVIEW_APP_EXTRA_ENV` | deploy | image + extra env (JSON) |
+| `PREVIEW_TENANT_NAME`, `PREVIEW_TENANT_PASSWORD` | all | tenant role credentials |
+| `CI_API_V4_URL`, `PREVIEW_SWEEP_TOKEN` | sweep | GitLab API + read-api token |
+
 ## Development
 
 ```sh

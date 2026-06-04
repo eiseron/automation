@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "cgi"
+require "json"
 require "net/http"
 require "uri"
 
@@ -19,6 +20,22 @@ module EiseronAutomation
 
     def create_tag(tag, ref)
       post("/repository/tags", tag_name: tag, ref: ref)
+    end
+
+    def open_merge_request_iids
+      iids = []
+      page = 1
+      while page <= 50
+        response = http(Net::HTTP::Get, "/merge_requests?state=opened&per_page=100&page=#{page}")
+        raise Error, "GET /merge_requests failed: #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+
+        batch = JSON.parse(response.body)
+        break if batch.empty?
+
+        iids.concat(batch.map { |merge_request| merge_request["iid"].to_s })
+        page += 1
+      end
+      iids
     end
 
     private
