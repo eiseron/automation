@@ -75,6 +75,19 @@ Environment:
 | `PREVIEW_TENANT_NAME`, `PREVIEW_TENANT_PASSWORD` | all | tenant role credentials |
 | `CI_API_V4_URL`, `PREVIEW_SWEEP_TOKEN` | sweep | GitLab API + read-api token |
 
+### `eiseron go lint`
+
+Lint gate for an Eiseron Go project. Runs `gofmt`, `go vet` and
+`golangci-lint`, then enforces the org's no-comments rule: source carries no
+line or block comments (rationale belongs in the MR description), the only
+exception being `//go:` directives. Comment detection strips string, raw-string
+and rune literals first, so a `//` inside a string is not a false positive, and
+the restored module cache under `.cache/` is excluded from every scan. Raises
+with the offending `file:line` on any violation.
+
+Used by `stack/ci`'s `go.yml` template, which installs this gem and runs the
+command in consumers' `lint` stage.
+
 ## Development
 
 ```sh
