@@ -97,12 +97,32 @@ module EiseronAutomation
       end
     end
 
+    def test_reads_non_ascii_source_under_ascii_locale
+      Dir.mktmpdir do |dir|
+        write(dir, "internal/ui.go", "package x\nconst dot = \"•••\"\n")
+        with_default_encoding(Encoding::US_ASCII) do
+          GoLint.new(root: dir, runner: FakeGoRunner.new, io: StringIO.new).check_comments
+        end
+      end
+    end
+
     private
 
     def write(dir, rel, content)
       path = File.join(dir, rel)
       FileUtils.mkdir_p(File.dirname(path))
       File.write(path, content)
+    end
+
+    def with_default_encoding(encoding)
+      original = Encoding.default_external
+      verbose = $VERBOSE
+      $VERBOSE = nil
+      Encoding.default_external = encoding
+      yield
+    ensure
+      Encoding.default_external = original
+      $VERBOSE = verbose
     end
   end
 end

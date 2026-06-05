@@ -61,7 +61,7 @@ module EiseronAutomation
 
     def self.find_comments(files)
       files.flat_map do |file|
-        scan(File.read(file)).map { |line_no| "#{file}:#{line_no}" }
+        scan(File.read(file, encoding: Encoding::UTF_8)).map { |line_no| "#{file}:#{line_no}" }
       end
     end
 
