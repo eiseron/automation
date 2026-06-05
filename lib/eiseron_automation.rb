@@ -4,6 +4,7 @@ require_relative "eiseron_automation/version"
 require_relative "eiseron_automation/gitlab_client"
 require_relative "eiseron_automation/release"
 require_relative "eiseron_automation/preview"
+require_relative "eiseron_automation/docs"
 require_relative "eiseron_automation/cli"
 
 module EiseronAutomation

@@ -6,7 +6,8 @@ module EiseronAutomation
       "release tag" => :release_tag,
       "preview deploy" => :preview_deploy,
       "preview stop" => :preview_stop,
-      "preview sweep" => :preview_sweep
+      "preview sweep" => :preview_sweep,
+      "docs publish" => :docs_publish
     }.freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
@@ -54,6 +55,10 @@ module EiseronAutomation
 
     def preview_sweep
       Preview.new(env: @env, io: @io).sweep
+    end
+
+    def docs_publish
+      Docs.new(env: @env, io: @io).publish
     end
 
     def require_env(name)
