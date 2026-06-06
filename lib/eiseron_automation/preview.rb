@@ -21,9 +21,9 @@ module EiseronAutomation
       "#{scheme}://#{tenant}:#{CGI.escape(password)}@#{authority}/#{database}"
     end
 
-    def app_env(database_url, extra_json)
+    def app_env(core, extra_json)
       extra = extra_json.to_s.empty? ? {} : JSON.parse(extra_json)
-      JSON.generate({ "DATABASE_URL" => database_url }.merge(extra))
+      JSON.generate(core.merge(extra))
     end
 
     def deployed_iids(names, app, suffix)
@@ -96,7 +96,17 @@ module EiseronAutomation
         "PREVIEW_APP_HOST" => "#{name}.#{zone}",
         "PREVIEW_APP_IMAGE" => require_env("PREVIEW_APP_IMAGE"),
         "PREVIEW_APP_PORT" => app_port,
-        "PREVIEW_APP_ENV" => PreviewPlan.app_env(database_url(database), @env["PREVIEW_APP_EXTRA_ENV"])
+        "PREVIEW_APP_ENV" => PreviewPlan.app_env(
+          {
+            "DATABASE_URL" => database_url(database),
+            "SECRET_KEY_BASE" => require_env("PREVIEW_SECRET_KEY_BASE"),
+            "PHX_HOST" => "#{name}.#{zone}",
+            "PORT" => app_port,
+            "MIX_ENV" => mix_env,
+            "PHX_SERVER" => "true"
+          },
+          @env["PREVIEW_APP_EXTRA_ENV"]
+        )
       }
     end
 
@@ -140,6 +150,7 @@ module EiseronAutomation
     def suffix = @env.fetch("EISERON_PREVIEW_SUFFIX", "")
     def zone = require_env("EISERON_PREVIEW_ZONE")
     def app_port = @env.fetch("EISERON_PREVIEW_PORT", "4000")
+    def mix_env = @env.fetch("PREVIEW_MIX_ENV", "preview")
     def db_scheme = @env.fetch("EISERON_PREVIEW_DB_SCHEME", "postgresql")
     def db_host = @env.fetch("EISERON_PREVIEW_DB_HOST", "shared-pg")
     def db_port = @env.fetch("EISERON_PREVIEW_DB_PORT", "5432")

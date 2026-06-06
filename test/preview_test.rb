@@ -38,6 +38,7 @@ module EiseronAutomation
         "PREVIEW_HOST_IP" => "1.2.3.4",
         "PREVIEW_TENANT_NAME" => "holter",
         "PREVIEW_TENANT_PASSWORD" => "p@ss/word",
+        "PREVIEW_SECRET_KEY_BASE" => "s",
         "ANSIBLE_PRIVATE_KEY_FILE" => "/tmp/key"
       }
     end
@@ -50,11 +51,16 @@ module EiseronAutomation
       assert_equal "ecto://holter:p%40ss%2Fword@shared-pg:5432/holter_mr5", url
     end
 
-    def test_app_env_merges_extra_over_database_url
-      json = PreviewPlan.app_env("ecto://u:p@h:5432/d", '{"SECRET_KEY_BASE":"s"}')
+    def test_app_env_merges_extra_over_core
+      json = PreviewPlan.app_env(
+        { "DATABASE_URL" => "ecto://u:p@h:5432/d", "SECRET_KEY_BASE" => "s", "MIX_ENV" => "preview" },
+        '{"FOO":"bar"}'
+      )
       parsed = JSON.parse(json)
       assert_equal "ecto://u:p@h:5432/d", parsed["DATABASE_URL"]
       assert_equal "s", parsed["SECRET_KEY_BASE"]
+      assert_equal "preview", parsed["MIX_ENV"]
+      assert_equal "bar", parsed["FOO"]
     end
 
     def test_deployed_iids_matches_only_this_apps_previews
@@ -66,7 +72,7 @@ module EiseronAutomation
       assert_equal %w[5 12], PreviewPlan.stale_iids(%w[5 9 12], %w[9])
     end
 
-    def deploy_vars(image: "registry/holter:abc", extra: '{"SECRET_KEY_BASE":"s"}')
+    def deploy_vars(image: "registry/holter:abc", extra: "{}")
       env = base_env.merge(
         "PREVIEW_MR_IID" => "5",
         "PREVIEW_APP_IMAGE" => image,
@@ -92,6 +98,8 @@ module EiseronAutomation
       app_env = JSON.parse(deploy_vars[:env]["PREVIEW_APP_ENV"])
       assert_equal "ecto://holter:p%40ss%2Fword@shared-pg:5432/holter_mr5", app_env["DATABASE_URL"]
       assert_equal "s", app_env["SECRET_KEY_BASE"]
+      assert_equal "holter-mr-5-preview.holter.dev", app_env["PHX_HOST"]
+      assert_equal "preview", app_env["MIX_ENV"]
     end
 
     def test_stop_runs_the_playbook_with_absent_state
