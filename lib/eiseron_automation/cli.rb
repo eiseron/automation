@@ -36,7 +36,7 @@ module EiseronAutomation
     end
 
     def release_tag
-      token = require_env("EISERON_STACK_TOKEN")
+      token = require_env("RELEASE_TOKEN")
       client = GitlabClient.new(
         api_url: require_env("CI_API_V4_URL"),
         project_id: require_env("CI_PROJECT_ID"),

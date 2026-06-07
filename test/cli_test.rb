@@ -19,7 +19,13 @@ module EiseronAutomation
     def test_release_tag_aborts_without_token_before_any_api_call
       code, err = run_cli(%w[release tag], env: {})
       assert_equal 1, code
-      assert_match(/EISERON_STACK_TOKEN is empty/, err)
+      assert_match(/RELEASE_TOKEN is empty/, err)
+    end
+
+    def test_release_tag_uses_release_token_then_needs_ci_api_url
+      code, err = run_cli(%w[release tag], env: { "RELEASE_TOKEN" => "a-token" })
+      assert_equal 1, code
+      assert_match(/CI_API_V4_URL is empty/, err)
     end
   end
 end
