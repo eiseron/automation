@@ -10,7 +10,9 @@ module EiseronAutomation
       "docs publish" => :docs_publish,
       "go lint" => :go_lint,
       "tofu lint" => :tofu_lint,
-      "prod deploy" => :prod_deploy
+      "prod deploy" => :prod_deploy,
+      "prod upload" => :prod_upload,
+      "prod trigger" => :prod_trigger
     }.freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
@@ -74,6 +76,14 @@ module EiseronAutomation
 
     def prod_deploy
       Prod::Deploy.new(env: @env, io: @io).deploy
+    end
+
+    def prod_upload
+      Prod::Upload.new(env: @env, io: @io).run
+    end
+
+    def prod_trigger
+      Prod::Trigger.new(env: @env, io: @io).run
     end
 
     def require_env(name)

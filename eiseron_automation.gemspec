@@ -24,6 +24,8 @@ Gem::Specification.new do |spec|
   spec.executables = ["eiseron"]
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "mime-types", "~> 3.0"
+
   spec.add_development_dependency "minitest", "~> 6.0"
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rubocop", "~> 1.87"

@@ -36,6 +36,15 @@ module EiseronAutomation
       names
     end
 
+    def trigger_pipeline(trigger_token:, ref:, variables: {})
+      params = { "token" => trigger_token, "ref" => ref }
+      variables.each { |key, value| params["variables[#{key}]"] = value }
+      response = http(Net::HTTP::Post, "/trigger/pipeline", params, auth: false)
+      return JSON.parse(response.body) if response.is_a?(Net::HTTPSuccess)
+
+      raise Error, "POST /trigger/pipeline failed: #{response.code} #{response.body}"
+    end
+
     def open_merge_request_iids
       iids = []
       page = 1
@@ -65,10 +74,10 @@ module EiseronAutomation
       raise Error, "POST #{path} failed: #{response.code} #{response.body}"
     end
 
-    def http(verb, path, params = nil)
+    def http(verb, path, params = nil, auth: true)
       uri = URI("#{@base}#{path}")
       request = verb.new(uri)
-      request["PRIVATE-TOKEN"] = @token
+      request["PRIVATE-TOKEN"] = @token if auth
       request.set_form_data(params) if params
       Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https") do |client|
         client.request(request)

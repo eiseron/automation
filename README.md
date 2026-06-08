@@ -100,6 +100,31 @@ description.
 
 Used by `stack/ci`'s `tofu-lint.yml` template.
 
+### `eiseron prod upload` / `trigger` / `deploy`
+
+Production build/deploy steps, driven from `stack/ci`'s `prod-build.yml`
+(product, on a tag) and `prod-deploy.yml` (the `-ops` repo, on the trigger).
+Each skips gracefully (dormant) when its config vars are unset.
+
+- `prod upload` — syncs the digested static tree to R2 via the aws-sdk-s3
+  `TransferManager`; sets `Content-Type` per extension from `mime-types`;
+  uploads assets (excludes `*.map`, `*.gz` — Cloudflare compresses at the edge)
+  and sourcemaps (`*.map` only) to separate buckets. Reads `PROD_ASSETS_DIR`
+  (default `priv/static`), `PROD_ASSETS_BUCKET`, `PROD_SOURCEMAPS_BUCKET`,
+  `CLOUDFLARE_ACCOUNT_ID`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`.
+- `prod trigger` — fires the `-ops` deploy pipeline (pipeline trigger token).
+  Reads `PROD_DEPLOYER_PROJECT`, `PROD_DEPLOYER_TRIGGER_TOKEN`, `CI_COMMIT_TAG`,
+  `CI_REGISTRY_IMAGE`, `CI_PROJECT_PATH`, `CI_API_V4_URL`.
+- `prod deploy` — `kamal deploy` of the pre-built image with an anti-downgrade
+  guard. Reads `PROD_TAG`, `PROD_PROJECT`, `PROD_DEPLOY_READ_TOKEN`,
+  `CI_API_V4_URL`; `PROD_DEPLOY_ALLOW_OLD=true` (web pipeline only) lifts the guard.
+
+Runtime gems: `mime-types` is a gem dependency (installed with the gem).
+`prod upload` additionally needs `aws-sdk-s3` (lazily required to keep the other
+commands light; the `stack/ci` job `gem install`s it), and `prod deploy` needs
+`kamal` (provided by the `ops` image). A consumer running these outside the
+`stack/ci` jobs must install those itself.
+
 ## Development
 
 ```sh

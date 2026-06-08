@@ -35,6 +35,17 @@ module EiseronAutomation
       assert_equal "GET /api/v4/projects/123/repository/tags/v0.1.1 HTTP/1.1", @requests.fetch(0)[:line]
     end
 
+    def test_trigger_pipeline_posts_trigger_token_without_private_token
+      result = @client.trigger_pipeline(trigger_token: "trig", ref: "main", variables: { "PROD_TAG" => "v1.2.3" })
+      request = @requests.fetch(0)
+      assert_equal "POST /api/v4/projects/123/trigger/pipeline HTTP/1.1", request[:line]
+      refute request[:headers].key?("private-token")
+      assert_includes request[:body], "token=trig"
+      assert_includes request[:body], "ref=main"
+      assert_includes request[:body], CGI.escape("variables[PROD_TAG]")
+      assert_instance_of Hash, result
+    end
+
     def test_open_merge_request_iids_accumulates_across_pages
       @stub_bodies = ['[{"iid":7},{"iid":8}]', "[]"]
       assert_equal %w[7 8], @client.open_merge_request_iids

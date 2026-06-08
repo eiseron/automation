@@ -33,5 +33,15 @@ module EiseronAutomation
       assert_equal 1, code
       assert_match(/PROD_TAG is empty/, err)
     end
+
+    def test_prod_upload_is_registered_and_skips_without_creds
+      code, = run_cli(%w[prod upload], env: {})
+      assert_equal 0, code
+    end
+
+    def test_prod_trigger_is_registered_and_skips_without_config
+      code, = run_cli(%w[prod trigger], env: {})
+      assert_equal 0, code
+    end
   end
 end
