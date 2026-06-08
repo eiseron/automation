@@ -27,5 +27,11 @@ module EiseronAutomation
       assert_equal 1, code
       assert_match(/CI_API_V4_URL is empty/, err)
     end
+
+    def test_prod_deploy_is_registered_and_aborts_without_prod_tag
+      code, err = run_cli(%w[prod deploy], env: {})
+      assert_equal 1, code
+      assert_match(/PROD_TAG is empty/, err)
+    end
   end
 end

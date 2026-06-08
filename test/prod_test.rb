@@ -1,0 +1,110 @@
+# frozen_string_literal: true
+
+require "test_helper"
+
+module EiseronAutomation
+  class ProdTest < Minitest::Test
+    class FakeRunner
+      attr_reader :runs
+
+      def initialize
+        @runs = []
+      end
+
+      def run(env, *cmd)
+        @runs << { env: env, cmd: cmd }
+      end
+    end
+
+    FakeClient = Struct.new(:tags) do
+      def release_tags
+        tags
+      end
+    end
+
+    def base_env
+      {
+        "PROD_TAG" => "v1.4.0",
+        "PROD_PROJECT" => "eiseron/afinados",
+        "PROD_DEPLOY_READ_TOKEN" => "tok",
+        "CI_API_V4_URL" => "https://gitlab.com/api/v4"
+      }
+    end
+
+    def test_latest_is_true_when_tag_is_the_highest_release
+      assert Prod::Plan.latest?("v1.4.0", %w[v1.2.0 v1.3.5 v1.4.0])
+    end
+
+    def test_latest_is_false_when_a_higher_release_exists
+      refute Prod::Plan.latest?("v1.3.0", %w[v1.2.0 v1.3.0 v1.4.0])
+    end
+
+    def test_latest_compares_numerically_not_lexically
+      assert Prod::Plan.latest?("v1.10.0", %w[v1.9.0 v1.10.0])
+    end
+
+    def test_latest_ignores_non_release_tags
+      assert Prod::Plan.latest?("v2.0.0", %w[v2.0.0 latest v2.0.0-rc1 nightly])
+    end
+
+    def test_latest_raises_on_a_non_release_tag
+      error = assert_raises(Error) { Prod::Plan.latest?("nightly", %w[v1.0.0]) }
+      assert_match(/not a release tag/, error.message)
+    end
+
+    def test_deploy_runs_kamal_with_version_and_skip_push
+      runner = FakeRunner.new
+      client = FakeClient.new(%w[v1.3.0 v1.4.0])
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
+
+      commands = runner.runs.map { |run| run[:cmd] }
+      assert_equal [["kamal", "deploy", "--version=v1.4.0", "--skip-push"]], commands
+    end
+
+    def test_deploy_refuses_a_non_latest_tag
+      runner = FakeRunner.new
+      env = base_env.merge("PROD_TAG" => "v1.3.0")
+      client = FakeClient.new(%w[v1.3.0 v1.4.0])
+      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: client)
+
+      error = assert_raises(Error) { prod.deploy }
+      assert_match(/not the latest release/, error.message)
+      assert_empty runner.runs
+    end
+
+    def test_deploy_allows_an_old_tag_with_the_override
+      runner = FakeRunner.new
+      env = base_env.merge("PROD_TAG" => "v1.3.0", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "web")
+      Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new(%w[v1.3.0 v1.4.0])).deploy
+
+      commands = runner.runs.map { |run| run[:cmd] }
+      assert_equal [["kamal", "deploy", "--version=v1.3.0", "--skip-push"]], commands
+    end
+
+    def test_deploy_raises_when_prod_tag_is_missing
+      env = base_env.except("PROD_TAG")
+      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: FakeRunner.new, client: FakeClient.new([]))
+      assert_raises(Error) { prod.deploy }
+    end
+
+    def test_deploy_ignores_override_outside_a_web_pipeline
+      runner = FakeRunner.new
+      env = base_env.merge("PROD_TAG" => "v1.3.0", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "trigger")
+      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new(%w[v1.3.0 v1.4.0]))
+
+      error = assert_raises(Error) { prod.deploy }
+      assert_match(/not the latest release/, error.message)
+      assert_empty runner.runs
+    end
+
+    def test_deploy_validates_tag_format_even_with_override
+      runner = FakeRunner.new
+      env = base_env.merge("PROD_TAG" => "nightly", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "web")
+      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new([]))
+
+      error = assert_raises(Error) { prod.deploy }
+      assert_match(/not a release tag/, error.message)
+      assert_empty runner.runs
+    end
+  end
+end

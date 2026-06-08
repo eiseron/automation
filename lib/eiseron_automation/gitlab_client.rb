@@ -20,6 +20,22 @@ module EiseronAutomation
       post("/repository/tags", tag_name: tag, ref: ref)
     end
 
+    def release_tags
+      names = []
+      page = 1
+      while page <= 50
+        response = http(Net::HTTP::Get, "/repository/tags?per_page=100&page=#{page}")
+        raise Error, "GET /repository/tags failed: #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+
+        batch = JSON.parse(response.body)
+        break if batch.empty?
+
+        names.concat(batch.map { |tag| tag["name"].to_s })
+        page += 1
+      end
+      names
+    end
+
     def open_merge_request_iids
       iids = []
       page = 1
