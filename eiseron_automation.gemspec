@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.summary = "Reusable Ruby automation toolkit for Eiseron CI and ops"
   spec.description = "Shared automations (starting with release tagging) used across Eiseron CI and ops pipelines."
   spec.homepage = "https://gitlab.com/eiseron/stack/automation"
-  spec.license = "MIT"
+  spec.license = "Apache-2.0"
   spec.required_ruby_version = ">= 3.2"
 
   spec.metadata["homepage_uri"] = spec.homepage
@@ -19,7 +19,7 @@ Gem::Specification.new do |spec|
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  spec.files = Dir["lib/**/*.rb", "VERSION", "README.md"]
+  spec.files = Dir["lib/**/*.rb", "VERSION", "README.md", "LICENSE"]
   spec.bindir = "bin"
   spec.executables = ["eiseron"]
   spec.require_paths = ["lib"]

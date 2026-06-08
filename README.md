@@ -88,6 +88,18 @@ with the offending `file:line` on any violation.
 Used by `stack/ci`'s `go.yml` template, which installs this gem and runs the
 command in consumers' `lint` stage.
 
+### `eiseron tofu lint`
+
+No-comments gate for OpenTofu/Terraform source. Scans every `.tf` under the
+working tree (excluding `.terraform/` and `.git/`) and raises with the
+offending `file:line` if any carries a `#`, `//` or `/* */` comment. String
+literals are stripped and heredoc bodies (`<<EOT`, `<<-EOT`, `<<"JSON"`) are
+skipped before scanning, so URLs, hex colors and `#`/`//` inside embedded
+scripts or policies are not false positives. Rationale belongs in the MR
+description.
+
+Used by `stack/ci`'s `tofu-lint.yml` template.
+
 ## Development
 
 ```sh

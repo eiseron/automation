@@ -8,7 +8,8 @@ module EiseronAutomation
       "preview stop" => :preview_stop,
       "preview sweep" => :preview_sweep,
       "docs publish" => :docs_publish,
-      "go lint" => :go_lint
+      "go lint" => :go_lint,
+      "tofu lint" => :tofu_lint
     }.freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
@@ -64,6 +65,10 @@ module EiseronAutomation
 
     def go_lint
       GoLint.new(io: @io).run
+    end
+
+    def tofu_lint
+      TofuLint.new(io: @io).run
     end
 
     def require_env(name)

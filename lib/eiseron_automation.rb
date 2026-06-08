@@ -6,6 +6,7 @@ require_relative "eiseron_automation/release"
 require_relative "eiseron_automation/preview"
 require_relative "eiseron_automation/docs"
 require_relative "eiseron_automation/go_lint"
+require_relative "eiseron_automation/tofu_lint"
 require_relative "eiseron_automation/cli"
 
 module EiseronAutomation
