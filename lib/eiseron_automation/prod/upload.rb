@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "mime/types"
-
 module EiseronAutomation
   module Prod
     class Upload
@@ -36,6 +34,7 @@ module EiseronAutomation
       end
 
       def mime_for_path(path)
+        require "mime/types"
         MIME::Types.type_for(path).first&.to_s || "application/octet-stream"
       end
 

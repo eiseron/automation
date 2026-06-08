@@ -44,6 +44,20 @@ test:
     - bundle install --jobs 4
     - bundle exec rake test
 
+# Loads the gem the way release-tag does — `ruby -Ilib`, no bundle install, no
+# deps — so an eager `require` of a non-stdlib gem fails here on the MR instead
+# of silently killing the next release-tag (how v0.8.0 was lost). Runtime deps
+# must be required lazily inside the command that needs them.
+load-without-deps:
+  stage: lint
+  image: ruby:3.3-alpine
+  tags:
+    - self-hosted
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - ruby -Ilib -e 'require "eiseron_automation"; EiseronAutomation::CLI'
+
 release-tag:
   stage: release
   image: ruby:3.3-alpine
