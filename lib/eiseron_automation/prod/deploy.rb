@@ -19,6 +19,18 @@ module EiseronAutomation
         @runner.run(@env.to_h, "kamal", "deploy", "--version=#{tag}", "--skip-push")
       end
 
+      def setup
+        tag = require_env("PROD_TAG")
+        raise Error, "PROD_TAG '#{tag}' is not a release tag (vMAJOR.MINOR.PATCH)" unless Plan.parse(tag)
+        unless @env.fetch("CI_PIPELINE_SOURCE", "") == "web"
+          raise Error,
+                "prod setup bootstraps a host and skips the latest-release guard; run it from a manual web pipeline."
+        end
+
+        @io.puts "Setting up #{tag} (first deploy: accessories + env + app, skip-push)"
+        @runner.run(@env.to_h, "kamal", "setup", "--version=#{tag}", "--skip-push")
+      end
+
       private
 
       def guard_downgrade(tag)

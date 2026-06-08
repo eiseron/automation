@@ -25,3 +25,7 @@ Metrics/AbcSize:
 
 Gemspec/DevelopmentDependencies:
   Enabled: false
+
+Metrics/ClassLength:
+  Exclude:
+    - test/**/*

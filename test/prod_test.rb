@@ -87,6 +87,47 @@ module EiseronAutomation
       assert_raises(Error) { prod.deploy }
     end
 
+    def web_env(overrides = {})
+      base_env.merge("CI_PIPELINE_SOURCE" => "web").merge(overrides)
+    end
+
+    def test_setup_runs_kamal_setup_with_version_and_skip_push
+      runner = FakeRunner.new
+      Prod::Deploy.new(env: web_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).setup
+
+      commands = runner.runs.map { |run| run[:cmd] }
+      assert_equal [["kamal", "setup", "--version=v1.4.0", "--skip-push"]], commands
+    end
+
+    def test_setup_does_not_apply_the_latest_release_guard
+      runner = FakeRunner.new
+      env = web_env("PROD_TAG" => "v1.3.0")
+      Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new(%w[v1.3.0 v1.4.0])).setup
+
+      commands = runner.runs.map { |run| run[:cmd] }
+      assert_equal [["kamal", "setup", "--version=v1.3.0", "--skip-push"]], commands
+    end
+
+    def test_setup_refuses_outside_a_web_pipeline
+      runner = FakeRunner.new
+      env = base_env.merge("CI_PIPELINE_SOURCE" => "trigger")
+      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new([]))
+
+      error = assert_raises(Error) { prod.setup }
+      assert_match(/manual web pipeline/, error.message)
+      assert_empty runner.runs
+    end
+
+    def test_setup_validates_tag_format
+      runner = FakeRunner.new
+      env = web_env("PROD_TAG" => "nightly")
+      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new([]))
+
+      error = assert_raises(Error) { prod.setup }
+      assert_match(/not a release tag/, error.message)
+      assert_empty runner.runs
+    end
+
     def test_deploy_ignores_override_outside_a_web_pipeline
       runner = FakeRunner.new
       env = base_env.merge("PROD_TAG" => "v1.3.0", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "trigger")

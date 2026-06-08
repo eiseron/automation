@@ -11,6 +11,7 @@ module EiseronAutomation
       "go lint" => :go_lint,
       "tofu lint" => :tofu_lint,
       "prod deploy" => :prod_deploy,
+      "prod setup" => :prod_setup,
       "prod upload" => :prod_upload,
       "prod trigger" => :prod_trigger
     }.freeze
@@ -76,6 +77,10 @@ module EiseronAutomation
 
     def prod_deploy
       Prod::Deploy.new(env: @env, io: @io).deploy
+    end
+
+    def prod_setup
+      Prod::Deploy.new(env: @env, io: @io).setup
     end
 
     def prod_upload
