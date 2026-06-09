@@ -12,6 +12,7 @@ require_relative "eiseron_automation/prod/runner"
 require_relative "eiseron_automation/prod/deploy"
 require_relative "eiseron_automation/prod/upload"
 require_relative "eiseron_automation/prod/trigger"
+require_relative "eiseron_automation/prod/tenant"
 require_relative "eiseron_automation/cli"
 
 module EiseronAutomation
