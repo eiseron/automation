@@ -115,9 +115,23 @@ Each skips gracefully (dormant) when its config vars are unset.
 - `prod trigger` — fires the `-ops` deploy pipeline (pipeline trigger token).
   Reads `PROD_DEPLOYER_PROJECT`, `PROD_DEPLOYER_TRIGGER_TOKEN`, `CI_COMMIT_TAG`,
   `CI_REGISTRY_IMAGE`, `CI_PROJECT_PATH`, `CI_API_V4_URL`.
+- `prod tenant` — provisions the per-product Postgres role and database on the
+  shared platform host over SSH (idempotent `CREATE ROLE`/`CREATE DATABASE`),
+  seeding the role with the managed `PROD_TENANT_PASSWORD`. Reads
+  `PROD_TENANT_SLUG`, `PROD_TENANT_PASSWORD`, `PROD_HOST`; `PG_CONTAINER`
+  (default `platform-db`), `PG_ADMIN_USER` (default `eiseron`), `DEPLOY_SSH_USER`
+  (default `deploy`).
 - `prod deploy` — `kamal deploy` of the pre-built image with an anti-downgrade
-  guard. Reads `PROD_TAG`, `PROD_PROJECT`, `PROD_DEPLOY_READ_TOKEN`,
-  `CI_API_V4_URL`; `PROD_DEPLOY_ALLOW_OLD=true` (web pipeline only) lifts the guard.
+  guard. Before deploying, idempotently re-applies `PROD_TENANT_PASSWORD` to the
+  role (`ALTER ROLE`), so a normal deploy is a no-op and a rotated secret lands
+  on the role; injects the assembled `DATABASE_URL` into the `kamal` subprocess
+  only (never the CI environment). Reads `PROD_TAG`, `PROD_PROJECT`,
+  `PROD_DEPLOY_READ_TOKEN`, `CI_API_V4_URL`, `PROD_TENANT_SLUG`,
+  `PROD_TENANT_PASSWORD`, `PROD_HOST`, `DB_URL_SCHEME` (default `ecto`);
+  `PROD_DEPLOY_ALLOW_OLD=true` (web pipeline only) lifts the guard.
+- `prod setup` — first `kamal setup` of a host (boots the app); skips the
+  anti-downgrade guard, re-applies the tenant password like `prod deploy`, and
+  must run from a manual web pipeline.
 
 Runtime gems: `mime-types` is a gem dependency (installed with the gem).
 `prod upload` additionally needs `aws-sdk-s3` (lazily required to keep the other

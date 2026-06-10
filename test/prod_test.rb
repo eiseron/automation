@@ -5,14 +5,19 @@ require "test_helper"
 module EiseronAutomation
   class ProdTest < Minitest::Test
     class FakeRunner
-      attr_reader :runs
+      attr_reader :runs, :stdins
 
       def initialize
         @runs = []
+        @stdins = []
       end
 
       def run(env, *cmd)
         @runs << { env: env, cmd: cmd }
+      end
+
+      def run_stdin(input, _env, *cmd)
+        @stdins << { sql: input, cmd: cmd }
       end
     end
 
@@ -27,7 +32,10 @@ module EiseronAutomation
         "PROD_TAG" => "v1.4.0",
         "PROD_PROJECT" => "eiseron/afinados",
         "PROD_DEPLOY_READ_TOKEN" => "tok",
-        "CI_API_V4_URL" => "https://gitlab.com/api/v4"
+        "CI_API_V4_URL" => "https://gitlab.com/api/v4",
+        "PROD_TENANT_SLUG" => "afinados",
+        "PROD_TENANT_PASSWORD" => "s3cr3t",
+        "PROD_HOST" => "10.0.0.1"
       }
     end
 
@@ -59,6 +67,19 @@ module EiseronAutomation
 
       commands = runner.runs.map { |run| run[:cmd] }
       assert_equal [["kamal", "deploy", "--version=v1.4.0", "--skip-push"]], commands
+    end
+
+    def test_deploy_ensures_the_db_password_and_injects_the_database_url
+      runner = FakeRunner.new
+      client = FakeClient.new(%w[v1.3.0 v1.4.0])
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
+
+      assert_match(/ALTER ROLE %I PASSWORD %L', 'afinados', 's3cr3t'/, runner.stdins.fetch(0)[:sql])
+      assert_equal "ecto://afinados:s3cr3t@platform-db/afinados_prod", runner.runs.fetch(0)[:env].fetch("DATABASE_URL")
+    end
+
+    def test_deploy_never_exports_database_url_to_the_ci_environment
+      refute base_env.key?("DATABASE_URL")
     end
 
     def test_deploy_refuses_a_non_latest_tag
@@ -97,6 +118,14 @@ module EiseronAutomation
 
       commands = runner.runs.map { |run| run[:cmd] }
       assert_equal [["kamal", "setup", "--version=v1.4.0", "--skip-push"]], commands
+    end
+
+    def test_setup_also_ensures_the_db_password
+      runner = FakeRunner.new
+      Prod::Deploy.new(env: web_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).setup
+
+      assert_match(/ALTER ROLE %I PASSWORD %L', 'afinados'/, runner.stdins.fetch(0)[:sql])
+      assert runner.runs.fetch(0)[:env].key?("DATABASE_URL")
     end
 
     def test_setup_does_not_apply_the_latest_release_guard

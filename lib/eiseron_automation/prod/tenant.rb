@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "erb"
+
 module EiseronAutomation
   module Prod
     class Tenant
@@ -12,25 +14,50 @@ module EiseronAutomation
       end
 
       def create
-        slug = tenant_slug
-        password = require_env("PROD_TENANT_PASSWORD")
-        db = "#{slug}_prod"
+        @runner.run_stdin(create_sql, @env.to_h, *psql_over_ssh)
+        @io.puts "Tenant #{slug} ready (role #{slug}, database #{database})."
+      end
 
-        @runner.run_stdin(provision_sql(slug, db, password), @env.to_h, *psql_over_ssh)
-        @io.puts "Tenant #{slug} ready (role #{slug}, database #{db})."
+      def ensure_password
+        @runner.run_stdin(alter_sql, @env.to_h, *psql_over_ssh)
+        @io.puts "Ensured #{slug} role password matches the managed secret."
+      end
+
+      def database_url
+        scheme = @env.fetch("DB_URL_SCHEME", "ecto")
+        host = @env.fetch("PG_CONTAINER", "platform-db")
+        "#{scheme}://#{slug}:#{ERB::Util.url_encode(password)}@#{host}/#{database}"
       end
 
       private
 
-      def provision_sql(slug, db, password)
-        literal = "'#{password.gsub("'", "''")}'"
+      def create_sql
         <<~SQL
           SET standard_conforming_strings = on;
           SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '#{slug}', #{literal})
           WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '#{slug}')\\gexec
-          SELECT format('CREATE DATABASE %I OWNER %I', '#{db}', '#{slug}')
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '#{db}')\\gexec
+          SELECT format('CREATE DATABASE %I OWNER %I', '#{database}', '#{slug}')
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '#{database}')\\gexec
         SQL
+      end
+
+      def alter_sql
+        <<~SQL
+          SET standard_conforming_strings = on;
+          SELECT format('ALTER ROLE %I PASSWORD %L', '#{slug}', #{literal})\\gexec
+        SQL
+      end
+
+      def literal
+        "'#{password.gsub("'", "''")}'"
+      end
+
+      def password
+        require_env("PROD_TENANT_PASSWORD")
+      end
+
+      def database
+        "#{slug}_prod"
       end
 
       def psql_over_ssh
@@ -42,11 +69,11 @@ module EiseronAutomation
          "psql", "-U", admin, "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-f", "-"]
       end
 
-      def tenant_slug
-        slug = require_env("PROD_TENANT_SLUG")
-        raise Error, "PROD_TENANT_SLUG '#{slug}' is not a valid postgres identifier" unless slug.match?(SLUG)
+      def slug
+        value = require_env("PROD_TENANT_SLUG")
+        raise Error, "PROD_TENANT_SLUG '#{value}' is not a valid postgres identifier" unless value.match?(SLUG)
 
-        slug
+        value
       end
 
       def require_env(name)

@@ -16,7 +16,7 @@ module EiseronAutomation
         tag = require_env("PROD_TAG")
         guard_downgrade(tag)
         @io.puts "Deploying #{tag} (pre-built image, skip-push)"
-        @runner.run(@env.to_h, "kamal", "deploy", "--version=#{tag}", "--skip-push")
+        run_kamal("deploy", tag)
       end
 
       def setup
@@ -28,10 +28,17 @@ module EiseronAutomation
         end
 
         @io.puts "Setting up #{tag} (first deploy: accessories + env + app, skip-push)"
-        @runner.run(@env.to_h, "kamal", "setup", "--version=#{tag}", "--skip-push")
+        run_kamal("setup", tag)
       end
 
       private
+
+      def run_kamal(action, tag)
+        tenant = Tenant.new(env: @env, io: @io, runner: @runner)
+        tenant.ensure_password
+        @runner.run(@env.to_h.merge("DATABASE_URL" => tenant.database_url),
+                    "kamal", action, "--version=#{tag}", "--skip-push")
+      end
 
       def guard_downgrade(tag)
         raise Error, "PROD_TAG '#{tag}' is not a release tag (vMAJOR.MINOR.PATCH)" unless Plan.parse(tag)
