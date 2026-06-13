@@ -14,7 +14,9 @@ module EiseronAutomation
       "prod setup" => :prod_setup,
       "prod tenant" => :prod_tenant,
       "prod upload" => :prod_upload,
-      "prod trigger" => :prod_trigger
+      "prod trigger" => :prod_trigger,
+      "db backup" => :db_backup,
+      "db restore-drill" => :db_restore_drill
     }.freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
@@ -94,6 +96,14 @@ module EiseronAutomation
 
     def prod_trigger
       Prod::Trigger.new(env: @env, io: @io).run
+    end
+
+    def db_backup
+      DB::Backup.new(env: @env, io: @io).run
+    end
+
+    def db_restore_drill
+      DB::RestoreDrill.new(env: @env, io: @io).run
     end
 
     def require_env(name)
