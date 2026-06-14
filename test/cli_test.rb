@@ -46,6 +46,30 @@ module EiseronAutomation
       assert_match(/PROD_TAG is empty/, err)
     end
 
+    def test_db_backup_schedule_is_registered_and_aborts_without_cron
+      code, err = run_cli(%w[db backup schedule], env: {})
+      assert_equal 1, code
+      assert_match(/BACKUP_CRON is empty/, err)
+    end
+
+    def test_db_backup_one_shot_stays_a_distinct_command
+      code, err = run_cli(%w[db backup], env: {})
+      assert_equal 1, code
+      assert_match(/PROD_BACKUP_AGE_RECIPIENTS|empty/, err)
+    end
+
+    def test_a_mistyped_subcommand_does_not_silently_fall_back_to_backup
+      code, err = run_cli(%w[db backup typo], env: {})
+      assert_equal 1, code
+      assert_match(/unknown command 'db backup typo'/, err)
+    end
+
+    def test_db_backup_healthcheck_is_registered_and_fails_without_a_heartbeat
+      code, err = run_cli(%w[db backup healthcheck], env: { "BACKUP_HEARTBEAT_FILE" => "/nonexistent/hb" })
+      assert_equal 1, code
+      assert_match(/heartbeat/, err)
+    end
+
     def test_prod_upload_is_registered_and_skips_without_creds
       code, = run_cli(%w[prod upload], env: {})
       assert_equal 0, code

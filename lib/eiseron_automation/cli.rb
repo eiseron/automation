@@ -16,6 +16,8 @@ module EiseronAutomation
       "prod upload" => :prod_upload,
       "prod trigger" => :prod_trigger,
       "db backup" => :db_backup,
+      "db backup schedule" => :db_backup_schedule,
+      "db backup healthcheck" => :db_backup_healthcheck,
       "db restore-drill" => :db_restore_drill
     }.freeze
 
@@ -27,7 +29,7 @@ module EiseronAutomation
     end
 
     def run
-      dispatch([@argv[0], @argv[1]].join(" "))
+      dispatch
       0
     rescue Error => e
       @err.puts "FATAL: #{e.message}"
@@ -36,11 +38,15 @@ module EiseronAutomation
 
     private
 
-    def dispatch(key)
-      handler = COMMANDS[key]
-      raise Error, "unknown command '#{key.strip}'. Available: #{COMMANDS.keys.join(', ')}" unless handler
+    def dispatch
+      handler = COMMANDS[@argv.join(" ")]
+      raise Error, unknown_command unless handler
 
       send(handler)
+    end
+
+    def unknown_command
+      "unknown command '#{@argv.join(' ')}'. Available: #{COMMANDS.keys.join(', ')}"
     end
 
     def release_tag
@@ -100,6 +106,14 @@ module EiseronAutomation
 
     def db_backup
       DB::Backup.new(env: @env, io: @io).run
+    end
+
+    def db_backup_schedule
+      DB::Schedule.new(env: @env, io: @io).run
+    end
+
+    def db_backup_healthcheck
+      DB::Healthcheck.new(env: @env, io: @io).run
     end
 
     def db_restore_drill
