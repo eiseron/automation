@@ -12,6 +12,7 @@ module EiseronAutomation
       "tofu lint" => :tofu_lint,
       "prod deploy" => :prod_deploy,
       "prod setup" => :prod_setup,
+      "prod backup" => :prod_backup,
       "prod tenant" => :prod_tenant,
       "prod upload" => :prod_upload,
       "prod trigger" => :prod_trigger,
@@ -60,65 +61,22 @@ module EiseronAutomation
       release.tag_from_file(@env.fetch("VERSION_FILE", "VERSION"))
     end
 
-    def preview_deploy
-      Preview.new(env: @env, io: @io).deploy
-    end
-
-    def preview_stop
-      Preview.new(env: @env, io: @io).stop
-    end
-
-    def preview_sweep
-      Preview.new(env: @env, io: @io).sweep
-    end
-
-    def docs_publish
-      Docs.new(env: @env, io: @io).publish
-    end
-
-    def go_lint
-      GoLint.new(io: @io).run
-    end
-
-    def tofu_lint
-      TofuLint.new(io: @io).run
-    end
-
-    def prod_deploy
-      Prod::Deploy.new(env: @env, io: @io).deploy
-    end
-
-    def prod_setup
-      Prod::Deploy.new(env: @env, io: @io).setup
-    end
-
-    def prod_tenant
-      Prod::Tenant.new(env: @env, io: @io).create
-    end
-
-    def prod_upload
-      Prod::Upload.new(env: @env, io: @io).run
-    end
-
-    def prod_trigger
-      Prod::Trigger.new(env: @env, io: @io).run
-    end
-
-    def db_backup
-      DB::Backup.new(env: @env, io: @io).run
-    end
-
-    def db_backup_schedule
-      DB::Schedule.new(env: @env, io: @io).run
-    end
-
-    def db_backup_healthcheck
-      DB::Healthcheck.new(env: @env, io: @io).run
-    end
-
-    def db_restore_drill
-      DB::RestoreDrill.new(env: @env, io: @io).run
-    end
+    def preview_deploy = Preview.new(env: @env, io: @io).deploy
+    def preview_stop = Preview.new(env: @env, io: @io).stop
+    def preview_sweep = Preview.new(env: @env, io: @io).sweep
+    def docs_publish = Docs.new(env: @env, io: @io).publish
+    def go_lint = GoLint.new(io: @io).run
+    def tofu_lint = TofuLint.new(io: @io).run
+    def prod_deploy = Prod::Deploy.new(env: @env, io: @io).deploy
+    def prod_setup = Prod::Deploy.new(env: @env, io: @io).setup
+    def prod_backup = Prod::Deploy.new(env: @env, io: @io).backup
+    def prod_tenant = Prod::Tenant.new(env: @env, io: @io).create
+    def prod_upload = Prod::Upload.new(env: @env, io: @io).run
+    def prod_trigger = Prod::Trigger.new(env: @env, io: @io).run
+    def db_backup = DB::Backup.new(env: @env, io: @io).run
+    def db_backup_schedule = DB::Schedule.new(env: @env, io: @io).run
+    def db_backup_healthcheck = DB::Healthcheck.new(env: @env, io: @io).run
+    def db_restore_drill = DB::RestoreDrill.new(env: @env, io: @io).run
 
     def require_env(name)
       value = @env[name].to_s

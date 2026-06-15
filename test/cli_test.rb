@@ -46,6 +46,12 @@ module EiseronAutomation
       assert_match(/PROD_TAG is empty/, err)
     end
 
+    def test_prod_backup_is_registered_and_aborts_without_tenant_slug
+      code, err = run_cli(%w[prod backup], env: {})
+      assert_equal 1, code
+      assert_match(/PROD_TENANT_SLUG is empty/, err)
+    end
+
     def test_db_backup_schedule_is_registered_and_aborts_without_cron
       code, err = run_cli(%w[db backup schedule], env: {})
       assert_equal 1, code

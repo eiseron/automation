@@ -131,6 +131,28 @@ module EiseronAutomation
       assert_raises(Error) { prod.deploy }
     end
 
+    def test_backup_execs_the_one_shot_in_the_backup_accessory
+      runner = FakeRunner.new
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
+
+      commands = runner.runs.map { |run| run[:cmd] }
+      assert_equal [%w[kamal accessory exec backup eiseron db backup]], commands
+    end
+
+    def test_backup_injects_the_database_url_for_the_manifest_render
+      runner = FakeRunner.new
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
+
+      assert_equal "ecto://afinados:s3cr3t@platform-db/afinados_prod", runner.runs.fetch(0)[:env].fetch("DATABASE_URL")
+    end
+
+    def test_backup_does_not_rotate_the_tenant_password
+      runner = FakeRunner.new
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
+
+      assert_empty runner.stdins
+    end
+
     def web_env(overrides = {})
       base_env.merge("CI_PIPELINE_SOURCE" => "web").merge(overrides)
     end

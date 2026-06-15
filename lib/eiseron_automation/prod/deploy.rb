@@ -15,6 +15,7 @@ module EiseronAutomation
       def deploy
         tag = require_env("PROD_TAG")
         guard_downgrade(tag)
+        ensure_tenant_password
         @io.puts "Deploying #{tag} (pre-built image, skip-push)"
         kamal("deploy", "--version=#{tag}", "--skip-push")
         @io.puts "Converging accessories from the manifest"
@@ -29,22 +30,32 @@ module EiseronAutomation
                 "prod setup bootstraps a host and skips the latest-release guard; run it from a manual web pipeline."
         end
 
+        ensure_tenant_password
         @io.puts "Setting up #{tag} (first deploy: accessories + env + app, skip-push)"
         kamal("setup", "--version=#{tag}", "--skip-push")
       end
 
+      def backup
+        @io.puts "Running an on-demand backup in the backup accessory"
+        kamal("accessory", "exec", "backup", "eiseron", "db", "backup")
+      end
+
       private
+
+      def ensure_tenant_password
+        tenant.ensure_password
+      end
 
       def kamal(*)
         @runner.run(kamal_env, "kamal", *)
       end
 
       def kamal_env
-        @kamal_env ||= begin
-          tenant = Tenant.new(env: @env, io: @io, runner: @runner)
-          tenant.ensure_password
-          @env.to_h.merge("DATABASE_URL" => tenant.database_url)
-        end
+        @kamal_env ||= @env.to_h.merge("DATABASE_URL" => tenant.database_url)
+      end
+
+      def tenant
+        @tenant ||= Tenant.new(env: @env, io: @io, runner: @runner)
       end
 
       def guard_downgrade(tag)
