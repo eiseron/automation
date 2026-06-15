@@ -37,7 +37,7 @@ module EiseronAutomation
 
       def backup
         @io.puts "Running an on-demand backup in the backup accessory"
-        kamal("accessory", "exec", "backup", "eiseron", "db", "backup")
+        kamal("accessory", "exec", "backup", "--version=latest", "eiseron", "db", "backup")
       end
 
       private

@@ -136,7 +136,14 @@ module EiseronAutomation
       Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
 
       commands = runner.runs.map { |run| run[:cmd] }
-      assert_equal [%w[kamal accessory exec backup eiseron db backup]], commands
+      assert_equal [["kamal", "accessory", "exec", "backup", "--version=latest", "eiseron", "db", "backup"]], commands
+    end
+
+    def test_backup_passes_a_version_so_kamal_does_not_need_a_git_repo
+      runner = FakeRunner.new
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
+
+      assert_includes runner.runs.fetch(0)[:cmd], "--version=latest"
     end
 
     def test_backup_injects_the_database_url_for_the_manifest_render
