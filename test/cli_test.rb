@@ -52,6 +52,18 @@ module EiseronAutomation
       assert_match(/PROD_TENANT_SLUG is empty/, err)
     end
 
+    def test_prod_restore_is_registered_and_aborts_without_a_backup_object
+      code, err = run_cli(%w[prod restore], env: {})
+      assert_equal 1, code
+      assert_match(/PROD_RESTORE_KEY is empty/, err)
+    end
+
+    def test_db_restore_is_registered_and_refuses_without_confirmation
+      code, err = run_cli(%w[db restore], env: {})
+      assert_equal 1, code
+      assert_match(/PROD_RESTORE_CONFIRM=app_prod/, err)
+    end
+
     def test_db_backup_schedule_is_registered_and_aborts_without_cron
       code, err = run_cli(%w[db backup schedule], env: {})
       assert_equal 1, code

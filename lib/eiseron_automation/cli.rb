@@ -13,10 +13,12 @@ module EiseronAutomation
       "prod deploy" => :prod_deploy,
       "prod setup" => :prod_setup,
       "prod backup" => :prod_backup,
+      "prod restore" => :prod_restore,
       "prod tenant" => :prod_tenant,
       "prod upload" => :prod_upload,
       "prod trigger" => :prod_trigger,
       "db backup" => :db_backup,
+      "db restore" => :db_restore,
       "db backup schedule" => :db_backup_schedule,
       "db backup healthcheck" => :db_backup_healthcheck,
       "db restore-drill" => :db_restore_drill
@@ -70,10 +72,12 @@ module EiseronAutomation
     def prod_deploy = Prod::Deploy.new(env: @env, io: @io).deploy
     def prod_setup = Prod::Deploy.new(env: @env, io: @io).setup
     def prod_backup = Prod::Deploy.new(env: @env, io: @io).backup
+    def prod_restore = Prod::Restore.new(env: @env, io: @io).run
     def prod_tenant = Prod::Tenant.new(env: @env, io: @io).create
     def prod_upload = Prod::Upload.new(env: @env, io: @io).run
     def prod_trigger = Prod::Trigger.new(env: @env, io: @io).run
     def db_backup = DB::Backup.new(env: @env, io: @io).run
+    def db_restore = DB::Restore.new(env: @env, io: @io).run
     def db_backup_schedule = DB::Schedule.new(env: @env, io: @io).run
     def db_backup_healthcheck = DB::Healthcheck.new(env: @env, io: @io).run
     def db_restore_drill = DB::RestoreDrill.new(env: @env, io: @io).run
