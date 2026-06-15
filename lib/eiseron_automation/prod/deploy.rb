@@ -16,7 +16,9 @@ module EiseronAutomation
         tag = require_env("PROD_TAG")
         guard_downgrade(tag)
         @io.puts "Deploying #{tag} (pre-built image, skip-push)"
-        run_kamal("deploy", tag)
+        kamal("deploy", "--version=#{tag}", "--skip-push")
+        @io.puts "Converging accessories from the manifest"
+        kamal("accessory", "reboot", "all", "--version=#{tag}")
       end
 
       def setup
@@ -28,16 +30,21 @@ module EiseronAutomation
         end
 
         @io.puts "Setting up #{tag} (first deploy: accessories + env + app, skip-push)"
-        run_kamal("setup", tag)
+        kamal("setup", "--version=#{tag}", "--skip-push")
       end
 
       private
 
-      def run_kamal(action, tag)
-        tenant = Tenant.new(env: @env, io: @io, runner: @runner)
-        tenant.ensure_password
-        @runner.run(@env.to_h.merge("DATABASE_URL" => tenant.database_url),
-                    "kamal", action, "--version=#{tag}", "--skip-push")
+      def kamal(*)
+        @runner.run(kamal_env, "kamal", *)
+      end
+
+      def kamal_env
+        @kamal_env ||= begin
+          tenant = Tenant.new(env: @env, io: @io, runner: @runner)
+          tenant.ensure_password
+          @env.to_h.merge("DATABASE_URL" => tenant.database_url)
+        end
       end
 
       def guard_downgrade(tag)

@@ -60,13 +60,33 @@ module EiseronAutomation
       assert_match(/not a release tag/, error.message)
     end
 
-    def test_deploy_runs_kamal_with_version_and_skip_push
+    def test_deploy_runs_kamal_then_converges_accessories
       runner = FakeRunner.new
       client = FakeClient.new(%w[v1.3.0 v1.4.0])
       Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
 
       commands = runner.runs.map { |run| run[:cmd] }
-      assert_equal [["kamal", "deploy", "--version=v1.4.0", "--skip-push"]], commands
+      assert_equal [
+        ["kamal", "deploy", "--version=v1.4.0", "--skip-push"],
+        ["kamal", "accessory", "reboot", "all", "--version=v1.4.0"]
+      ], commands
+    end
+
+    def test_deploy_converges_accessories_with_the_same_database_url
+      runner = FakeRunner.new
+      client = FakeClient.new(%w[v1.3.0 v1.4.0])
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
+
+      reboot = runner.runs.fetch(1)
+      assert_equal "ecto://afinados:s3cr3t@platform-db/afinados_prod", reboot[:env].fetch("DATABASE_URL")
+    end
+
+    def test_deploy_ensures_the_db_password_only_once
+      runner = FakeRunner.new
+      client = FakeClient.new(%w[v1.3.0 v1.4.0])
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
+
+      assert_equal 1, runner.stdins.length
     end
 
     def test_deploy_ensures_the_db_password_and_injects_the_database_url
@@ -99,7 +119,10 @@ module EiseronAutomation
       Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new(%w[v1.3.0 v1.4.0])).deploy
 
       commands = runner.runs.map { |run| run[:cmd] }
-      assert_equal [["kamal", "deploy", "--version=v1.3.0", "--skip-push"]], commands
+      assert_equal [
+        ["kamal", "deploy", "--version=v1.3.0", "--skip-push"],
+        ["kamal", "accessory", "reboot", "all", "--version=v1.3.0"]
+      ], commands
     end
 
     def test_deploy_raises_when_prod_tag_is_missing
