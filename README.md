@@ -139,6 +139,36 @@ commands light; the `stack/ci` job `gem install`s it), and `prod deploy` needs
 `kamal` (provided by the `ops` image). A consumer running these outside the
 `stack/ci` jobs must install those itself.
 
+### `eiseron ci init` / `install` / `update` / `check`
+
+Manages `stack/ci`'s dependency lockfile the way a package manager manages a
+`Gemfile` + `Gemfile.lock`. `manifest.yml` declares
+each dependency (`gems`, `repos`, `images`) keyed by its full source — a git path
+or a Docker reference — with a version constraint (`~>`, `>=`, `=`, `*`); the
+command picks the highest published version satisfying each constraint and pins it
+to an immutable hash — git tags resolve to commit SHAs, images to registry
+digests — writing a `variables:` block (`lock.yml`) the templates consume as
+`$STACK_*` (kept off the GitLab-reserved `CI_*` namespace). Each pin carries its
+full reference: gems/repos emit `STACK_<NAME>_REPO` plus `_REF`/`_SHA`, images
+emit `STACK_<NAME>_IMAGE` (`registry/repo@digest`) plus `_TAG`, so the templates
+never hardcode a URL or registry path.
+
+- `ci init` — scaffolds an empty `manifest.yml` (`gems`/`repos`/`images`) if absent.
+- `ci install` — resolves the manifest into `lock.yml`: creates it if absent,
+  otherwise keeps every pin that still satisfies the manifest and re-resolves only
+  the rest.
+- `ci update [name…]` — re-resolves the named dependencies (all, if none given) to
+  the highest version in range.
+- `ci check` — frozen-lockfile verification for CI: fails when the lock is absent,
+  missing a variable, or pinned to a version that no longer satisfies the manifest,
+  and asserts the `gem-runtime` image's baked `automation_ref` label matches the
+  locked automation SHA — the divergence that broke `db restore`.
+
+Reads `STACK_MANIFEST` (default `manifest.yml`) and `STACK_LOCK` (default
+`lock.yml`). Shells out to `git ls-remote` and `crane` (provided by the
+`stack/ci` `lock-check` job); both are lazily invoked, so loading the gem needs
+neither.
+
 ## Development
 
 ```sh

@@ -22,8 +22,14 @@ module EiseronAutomation
       "db backup schedule" => :db_backup_schedule,
       "db backup healthcheck" => :db_backup_healthcheck,
       "db backup verify" => :db_backup_verify,
-      "db restore-drill" => :db_restore_drill
+      "db restore-drill" => :db_restore_drill,
+      "ci init" => :ci_init,
+      "ci install" => :ci_install,
+      "ci update" => :ci_update,
+      "ci check" => :ci_check
     }.freeze
+
+    ARG_COMMANDS = ["ci update"].freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
       @argv = argv
@@ -43,10 +49,21 @@ module EiseronAutomation
     private
 
     def dispatch
-      handler = COMMANDS[@argv.join(" ")]
-      raise Error, unknown_command unless handler
+      raise Error, unknown_command unless command_name
 
-      send(handler)
+      @args = @argv.drop(command_name.split.length)
+      send(COMMANDS[command_name])
+    end
+
+    def command_name
+      @command_name ||= resolve_command
+    end
+
+    def resolve_command
+      joined = @argv.join(" ")
+      return joined if COMMANDS.key?(joined)
+
+      ARG_COMMANDS.select { |key| joined.start_with?("#{key} ") }.max_by(&:length)
     end
 
     def unknown_command
@@ -83,6 +100,11 @@ module EiseronAutomation
     def db_backup_healthcheck = DB::Healthcheck.new(env: @env, io: @io).run
     def db_backup_verify = DB::Verify.new(env: @env, io: @io).run
     def db_restore_drill = DB::RestoreDrill.new(env: @env, io: @io).run
+
+    def ci_init = CI::Lock.build(env: @env, io: @io).init
+    def ci_install = CI::Lock.build(env: @env, io: @io).install
+    def ci_update = CI::Lock.build(env: @env, io: @io).update(@args)
+    def ci_check = CI::Lock.build(env: @env, io: @io).check
 
     def require_env(name)
       value = @env[name].to_s
