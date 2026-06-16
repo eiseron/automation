@@ -1,0 +1,77 @@
+# frozen_string_literal: true
+
+module EiseronAutomation
+  module DB
+    class Verify
+      IDENTIFIER = /\A[a-z][a-z0-9_]{0,62}\z/
+      STAMP = /(\d{4})-(\d{2})-(\d{2})T(\d{2})(\d{2})(\d{2})Z\.sql\.age\z/
+      DEFAULT_STALE_HOURS = 30
+
+      def initialize(env: ENV, io: $stdout, store: nil, now: nil)
+        @env = env
+        @io = io
+        @store = store
+        @now = now
+      end
+
+      def run
+        check_prod_backup_bucket_presence
+        raise stale_error if age_hours > stale_hours
+
+        @io.puts "Backup fresh: s3://#{bucket}/#{latest_object} (#{age_hours.round(1)}h old, threshold #{stale_hours}h)"
+      end
+
+      private
+
+      def latest_object
+        @latest_object ||= begin
+          objects = store.list(bucket, prefix).select { |key| key.end_with?(".sql.age") }
+          raise Error, "no backups under s3://#{bucket}/#{prefix}/ — has the scheduler ever run?" if objects.empty?
+
+          objects.max
+        end
+      end
+
+      def stamp
+        @stamp ||= begin
+          match = latest_object.match(STAMP)
+          raise Error, stamp_format_error unless match
+
+          Time.utc(*match.captures.map(&:to_i))
+        end
+      end
+
+      def stamp_format_error
+        "backup object '#{latest_object}' does not match the expected YYYY-MM-DDTHHMMSSZ.sql.age name"
+      end
+
+      def age_hours = @age_hours ||= (now - stamp) / 3600.0
+
+      def stale_error
+        Error.new("backup stale: s3://#{bucket}/#{latest_object} is " \
+                  "#{age_hours.round(1)}h old, threshold #{stale_hours}h")
+      end
+
+      def stale_hours = @stale_hours ||= Integer(@env.fetch("PROD_BACKUP_STALE_HOURS", DEFAULT_STALE_HOURS.to_s))
+      def bucket = check_prod_backup_bucket_presence
+      def check_prod_backup_bucket_presence = require_env("PROD_BACKUP_BUCKET")
+      def prefix = identifier("PROD_BACKUP_NAME", "app")
+      def store = @store ||= R2.new(account_id: require_env("CLOUDFLARE_ACCOUNT_ID"))
+      def now = @now ||= Time.now.utc
+
+      def identifier(name, default)
+        value = @env.fetch(name, default)
+        raise Error, "#{name} '#{value}' is not a valid postgres identifier" unless value.match?(IDENTIFIER)
+
+        value
+      end
+
+      def require_env(name)
+        value = @env[name].to_s
+        raise Error, "#{name} is empty" if value.empty?
+
+        value
+      end
+    end
+  end
+end

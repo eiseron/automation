@@ -21,6 +21,7 @@ module EiseronAutomation
       "db restore" => :db_restore,
       "db backup schedule" => :db_backup_schedule,
       "db backup healthcheck" => :db_backup_healthcheck,
+      "db backup verify" => :db_backup_verify,
       "db restore-drill" => :db_restore_drill
     }.freeze
 
@@ -80,6 +81,7 @@ module EiseronAutomation
     def db_restore = DB::Restore.new(env: @env, io: @io).run
     def db_backup_schedule = DB::Schedule.new(env: @env, io: @io).run
     def db_backup_healthcheck = DB::Healthcheck.new(env: @env, io: @io).run
+    def db_backup_verify = DB::Verify.new(env: @env, io: @io).run
     def db_restore_drill = DB::RestoreDrill.new(env: @env, io: @io).run
 
     def require_env(name)

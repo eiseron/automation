@@ -82,6 +82,12 @@ module EiseronAutomation
       assert_match(/unknown command 'db backup typo'/, err)
     end
 
+    def test_db_backup_verify_is_registered_and_aborts_without_a_bucket
+      code, err = run_cli(%w[db backup verify], env: {})
+      assert_equal 1, code
+      assert_match(/PROD_BACKUP_BUCKET is empty/, err)
+    end
+
     def test_db_backup_healthcheck_is_registered_and_fails_without_a_heartbeat
       code, err = run_cli(%w[db backup healthcheck], env: { "BACKUP_HEARTBEAT_FILE" => "/nonexistent/hb" })
       assert_equal 1, code

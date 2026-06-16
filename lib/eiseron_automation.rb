@@ -23,6 +23,7 @@ require_relative "eiseron_automation/db/schedule"
 require_relative "eiseron_automation/db/healthcheck"
 require_relative "eiseron_automation/db/restore_drill"
 require_relative "eiseron_automation/db/restore"
+require_relative "eiseron_automation/db/verify"
 require_relative "eiseron_automation/cli"
 
 module EiseronAutomation
