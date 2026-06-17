@@ -5,14 +5,24 @@ require "test_helper"
 module EiseronAutomation
   module CI
     class NamingTest < Minitest::Test
-      def test_image_var_base_uses_repo_basename
-        entry = { type: "image", source: "registry.gitlab.com/eiseron/stack/public-image-bases/gem-runtime" }
-        assert_equal "GEM_RUNTIME", Naming.var_base(entry)
+      def test_image_var_base_uses_name_basename
+        path = "registry.gitlab.com/eiseron/stack/public-image-bases/gem-runtime"
+        assert_equal "GEM_RUNTIME", Naming.var_base({ type: "image", name: path, source: path })
+      end
+
+      def test_image_var_base_uses_explicit_name_distinct_from_source
+        entry = { type: "image", name: "postgres-drill", source: "postgres" }
+        assert_equal "POSTGRES_DRILL", Naming.var_base(entry)
       end
 
       def test_gem_var_base_uses_full_path_basename
         path = "gitlab.com/eiseron/stack/automation"
         assert_equal "AUTOMATION", Naming.var_base({ type: "gem", name: path, source: path })
+      end
+
+      def test_gem_var_base_normalizes_dashes_to_underscores_for_rubygems_style_name
+        entry = { type: "gem", name: "aws-sdk-s3", source: "aws-sdk-s3" }
+        assert_equal "AWS_SDK_S3", Naming.var_base(entry)
       end
 
       def test_git_url_from_full_path

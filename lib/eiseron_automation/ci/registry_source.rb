@@ -5,7 +5,7 @@ require "json"
 module EiseronAutomation
   module CI
     class RegistrySource
-      SEMVER = /\Av?\d+\.\d+\.\d+\z/
+      TAG = /\Av?\d+(\.\d+)*(-[a-z][a-z0-9.]*)*\z/
 
       def initialize(runner: CommandRunner.new)
         @runner = runner
@@ -28,7 +28,7 @@ module EiseronAutomation
       end
 
       def tags(ref)
-        @runner.capture("crane", "ls", ref).to_s.split("\n").map(&:strip).grep(SEMVER)
+        @runner.capture("crane", "ls", ref).to_s.split("\n").map(&:strip).grep(TAG)
       end
     end
   end

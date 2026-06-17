@@ -6,8 +6,7 @@ module EiseronAutomation
       DEFAULT_REGISTRY = "docker.io"
 
       def self.var_base(entry)
-        reference = entry[:type] == "image" ? entry[:source] : entry[:name]
-        basename(reference).upcase.gsub(/[^A-Z0-9]+/, "_")
+        basename(entry[:name]).upcase.gsub(/[^A-Z0-9]+/, "_")
       end
 
       def self.basename(reference)

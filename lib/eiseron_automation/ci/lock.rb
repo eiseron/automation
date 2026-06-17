@@ -8,10 +8,15 @@ module EiseronAutomation
 
       def self.build(env:, io:)
         git = GitSource.new
+        rubygems = RubyGemsSource.new
         new(
           manifest_path: env.fetch("STACK_MANIFEST", "manifest.yml"),
           lock_path: env.fetch("STACK_LOCK", "lock.yml"),
-          sources: { "gem" => git, "repo" => git, "image" => RegistrySource.new },
+          sources: {
+            "gem" => GemRouter.new(git: git, rubygems: rubygems),
+            "repo" => git,
+            "image" => RegistrySource.new
+          },
           io: io
         )
       end
