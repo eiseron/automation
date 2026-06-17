@@ -26,7 +26,8 @@ module EiseronAutomation
       "ci init" => :ci_init,
       "ci install" => :ci_install,
       "ci update" => :ci_update,
-      "ci check" => :ci_check
+      "ci check" => :ci_check,
+      "notify ci-failure" => :notify_ci_failure
     }.freeze
 
     ARG_COMMANDS = ["ci update"].freeze
@@ -105,6 +106,8 @@ module EiseronAutomation
     def ci_install = CI::Lock.build(env: @env, io: @io).install
     def ci_update = CI::Lock.build(env: @env, io: @io).update(@args)
     def ci_check = CI::Lock.build(env: @env, io: @io).check
+
+    def notify_ci_failure = Notify::CIFailure.new(env: @env, io: @io, err: @err).run
 
     def require_env(name)
       value = @env[name].to_s

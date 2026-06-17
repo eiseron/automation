@@ -33,6 +33,8 @@ require_relative "eiseron_automation/ci/git_source"
 require_relative "eiseron_automation/ci/registry_source"
 require_relative "eiseron_automation/ci/lock_file"
 require_relative "eiseron_automation/ci/lock"
+require_relative "eiseron_automation/notify/telegram"
+require_relative "eiseron_automation/notify/ci_failure"
 require_relative "eiseron_automation/cli"
 
 module EiseronAutomation

@@ -88,6 +88,12 @@ module EiseronAutomation
       assert_match(/PROD_BACKUP_BUCKET is empty/, err)
     end
 
+    def test_notify_ci_failure_is_registered_and_aborts_without_project_path
+      code, err = run_cli(%w[notify ci-failure], env: {})
+      assert_equal 1, code
+      assert_match(/CI_PROJECT_PATH is empty/, err)
+    end
+
     def test_db_backup_healthcheck_is_registered_and_fails_without_a_heartbeat
       code, err = run_cli(%w[db backup healthcheck], env: { "BACKUP_HEARTBEAT_FILE" => "/nonexistent/hb" })
       assert_equal 1, code
