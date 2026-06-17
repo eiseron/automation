@@ -3,7 +3,7 @@
 module EiseronAutomation
   module CI
     class Lock
-      GEM_RUNTIME_IMAGE = "STACK_GEM_RUNTIME_IMAGE"
+      AUTOMATION_LABEL = "automation_ref"
       AUTOMATION_SHA = "STACK_AUTOMATION_SHA"
 
       def self.build(env:, io:)
@@ -42,7 +42,7 @@ module EiseronAutomation
         fail_check("lock.yml is missing") unless File.exist?(@lock_path)
         vars = current_vars
         entries.each { |entry| verify(entry, vars) }
-        assert_gem_runtime(vars)
+        assert_baked_automation(vars)
         @io.puts "ci: lock in sync with manifest"
       end
 
@@ -85,16 +85,29 @@ module EiseronAutomation
         fail_check("#{entry[:name]} #{version} does not satisfy '#{entry[:constraint]}'")
       end
 
-      def assert_gem_runtime(vars)
-        image = vars[GEM_RUNTIME_IMAGE]
+      def assert_baked_automation(vars)
         expected = vars[AUTOMATION_SHA]
-        return unless image && expected
+        return unless expected
 
-        actual = @sources.fetch("image").label(image, "automation_ref")
-        return if actual == expected
+        baked_image_vars(vars).each do |key, image|
+          actual = registry.label(image, AUTOMATION_LABEL)
+          next unless actual
+          next if actual == expected
 
-        raise Error, "gem-runtime bakes automation_ref #{actual.inspect} but lock pins #{expected.inspect}"
+          raise Error, "#{image_name(key)} bakes #{AUTOMATION_LABEL} #{actual.inspect} " \
+                       "but lock pins #{expected.inspect}"
+        end
       end
+
+      def baked_image_vars(vars)
+        vars.select { |key, _| key.start_with?("STACK_") && key.end_with?("_IMAGE") }
+      end
+
+      def image_name(key)
+        key.delete_prefix("STACK_").delete_suffix("_IMAGE").downcase.tr("_", "-")
+      end
+
+      def registry = @sources.fetch("image")
 
       def write(vars)
         File.write(@lock_path, LockFile.render(vars))

@@ -41,6 +41,8 @@ module EiseronAutomation
     class LockTest < Minitest::Test
       AUTOMATION = "gitlab.com/eiseron/stack/automation"
       GEM_RUNTIME = "registry.gitlab.com/eiseron/stack/public-image-bases/gem-runtime"
+      IAC = "registry.gitlab.com/eiseron/stack/public-image-bases/iac"
+      OPS = "registry.gitlab.com/eiseron/stack/public-image-bases/ops"
 
       def setup
         @dir = Dir.mktmpdir
@@ -60,6 +62,25 @@ module EiseronAutomation
           images:
             #{GEM_RUNTIME}: "~> 0.1"
         YAML
+      end
+
+      def write_manifest_with_iac_and_ops
+        File.write(@manifest, <<~YAML)
+          gems:
+            #{AUTOMATION}: "~> 0.16.0"
+          images:
+            #{GEM_RUNTIME}: "~> 0.1"
+            #{IAC}: "~> 0.1"
+            #{OPS}: "~> 0.1"
+        YAML
+      end
+
+      def multi_image_registry(labels:)
+        FakeRegistrySource.new(
+          tags: { GEM_RUNTIME => ["v0.1.22"], IAC => ["v0.1.22"], OPS => ["v0.1.22"] },
+          digest: "sha256:dead",
+          labels: labels.transform_keys { |source| "#{source}@sha256:dead" }
+        )
       end
 
       def git_source
@@ -133,6 +154,30 @@ module EiseronAutomation
         diverging = build(registry: registry_source(label: "75ec173"))
         error = assert_raises(Error) { diverging.check }
         assert_match(/gem-runtime bakes automation_ref/, error.message)
+      end
+
+      def test_check_skips_images_without_an_automation_label
+        write_manifest_with_iac_and_ops
+        registry = multi_image_registry(labels: { GEM_RUNTIME => "134ee8b" })
+        build(registry: registry).install
+        build(registry: registry).check
+      end
+
+      def test_check_fails_when_iac_label_diverges_from_locked_automation_sha
+        write_manifest_with_iac_and_ops
+        registry = multi_image_registry(labels: { GEM_RUNTIME => "134ee8b", IAC => "v0.6.0" })
+        build(registry: registry).install
+        error = assert_raises(Error) { build(registry: registry).check }
+        assert_match(/iac bakes automation_ref/, error.message)
+        assert_match(/"v0.6.0"/, error.message)
+        assert_match(/"134ee8b"/, error.message)
+      end
+
+      def test_check_passes_when_every_baked_image_matches_locked_sha
+        write_manifest_with_iac_and_ops
+        registry = multi_image_registry(labels: { GEM_RUNTIME => "134ee8b", IAC => "134ee8b" })
+        build(registry: registry).install
+        build(registry: registry).check
       end
 
       def test_check_fails_when_locked_version_violates_manifest

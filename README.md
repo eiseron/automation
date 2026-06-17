@@ -161,8 +161,10 @@ never hardcode a URL or registry path.
   the highest version in range.
 - `ci check` — frozen-lockfile verification for CI: fails when the lock is absent,
   missing a variable, or pinned to a version that no longer satisfies the manifest,
-  and asserts the `gem-runtime` image's baked `automation_ref` label matches the
-  locked automation SHA — the divergence that broke `db restore`.
+  and asserts that **every** baked image with an `automation_ref` label matches the
+  locked automation SHA — the divergence that broke `db restore`. Images that do
+  not bake the gem (no `automation_ref` label) are silently skipped, so the check
+  naturally extends to whichever images opt in by declaring the label.
 
 Reads `STACK_MANIFEST` (default `manifest.yml`) and `STACK_LOCK` (default
 `lock.yml`). Shells out to `git ls-remote` and `crane` (provided by the
