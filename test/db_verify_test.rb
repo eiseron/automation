@@ -5,12 +5,23 @@ require "test_helper"
 module EiseronAutomation
   class DbVerifyTest < Minitest::Test
     class FakeStore
-      def initialize(stamps)
-        @stamps = stamps
+      attr_reader :head_checks
+
+      def initialize(history_text, existing_keys: nil)
+        @history_text = history_text
+        @existing_keys = existing_keys
+        @head_checks = []
       end
 
-      def list(_bucket, prefix)
-        @stamps.map { |stamp| "#{prefix}/#{stamp}Z.sql.age" }
+      def read_text(_bucket, _key)
+        @history_text
+      end
+
+      def exists?(_bucket, key)
+        @head_checks << key
+        return @existing_keys.include?(key) if @existing_keys
+
+        true
       end
     end
 
@@ -26,73 +37,97 @@ module EiseronAutomation
       Time.utc(2026, 6, 15, 11, 0, 0)
     end
 
+    def history(*stamps)
+      "#{stamps.map { |s| "afinados/#{s}Z.sql.age" }.join("\n")}\n"
+    end
+
     def verify(store, vars = env, at: now)
-      DB::Verify.new(env: vars, io: StringIO.new, store: store, now: at)
+      DB::Verify.new(env: vars, io: (@io = StringIO.new), store: store, now: at)
     end
 
     def test_passes_when_the_latest_backup_is_within_the_threshold
-      store = FakeStore.new(%w[2026-06-15T040000 2026-06-14T040000])
+      store = FakeStore.new(history("2026-06-15T040000", "2026-06-14T040000"))
       verify(store).run
     end
 
     def test_raises_when_the_latest_backup_is_older_than_the_threshold
-      store = FakeStore.new(%w[2026-06-13T040000])
+      store = FakeStore.new(history("2026-06-13T040000"))
       error = assert_raises(Error) { verify(store).run }
       assert_match(/backup stale/, error.message)
       assert_match(/threshold 30h/, error.message)
     end
 
-    def test_raises_when_the_bucket_has_no_backups
-      error = assert_raises(Error) { verify(FakeStore.new([])).run }
+    def test_raises_when_no_history_file_exists
+      error = assert_raises(Error) { verify(FakeStore.new(nil)).run }
+      assert_match(/no history/, error.message)
+    end
+
+    def test_raises_when_history_has_no_backups
+      error = assert_raises(Error) { verify(FakeStore.new("")).run }
       assert_match(/no backups/, error.message)
     end
 
     def test_picks_the_newest_object_when_choosing_freshness
-      store = FakeStore.new(%w[2026-06-10T040000 2026-06-15T040000 2026-06-12T040000])
+      store = FakeStore.new(history("2026-06-10T040000", "2026-06-15T040000", "2026-06-12T040000"))
       verify(store).run
     end
 
-    def test_ignores_non_backup_objects
-      store = FakeStore.new(%w[9999-zzz-not-a-backup 2026-06-15T040000])
-      def store.list(_bucket, prefix)
-        [
-          "#{prefix}/9999-zzz-not-a-backup.txt",
-          "#{prefix}/2026-06-15T040000Z.sql.age"
-        ]
-      end
+    def test_ignores_non_backup_entries_in_history
+      text = "afinados/9999-zzz-not-a-backup.txt\nafinados/2026-06-15T040000Z.sql.age\n"
+      store = FakeStore.new(text)
       verify(store).run
     end
 
     def test_honors_a_custom_threshold_from_the_environment
-      store = FakeStore.new(%w[2026-06-14T040000])
+      store = FakeStore.new(history("2026-06-14T040000"))
       assert_raises(Error) { verify(store, env("PROD_BACKUP_STALE_HOURS" => "20")).run }
       verify(store, env("PROD_BACKUP_STALE_HOURS" => "48")).run
     end
 
     def test_raises_when_the_newest_object_has_an_unparseable_name
-      store = FakeStore.new([])
-      def store.list(_bucket, prefix)
-        ["#{prefix}/zzz-mangled.sql.age"]
-      end
-      error = assert_raises(Error) { verify(store).run }
+      text = "afinados/zzz-mangled.sql.age\n"
+      error = assert_raises(Error) { verify(FakeStore.new(text)).run }
       assert_match(/does not match the expected/, error.message)
     end
 
     def test_reports_freshness_in_hours_on_success
-      io = StringIO.new
-      store = FakeStore.new(%w[2026-06-15T040000])
-      DB::Verify.new(env: env, io: io, store: store, now: now).run
-      assert_match(/Backup fresh.*7\.0h old.*threshold 30h/, io.string)
+      store = FakeStore.new(history("2026-06-15T040000"))
+      verify(store).run
+      assert_match(/Backup fresh.*7\.0h old.*threshold 30h/, @io.string)
+    end
+
+    def test_warns_about_missing_backups
+      keys = ["afinados/2026-06-15T040000Z.sql.age"]
+      store = FakeStore.new(
+        history("2026-06-15T040000", "2026-06-14T040000"),
+        existing_keys: keys
+      )
+      verify(store).run
+      assert_match(/WARNING: missing backup.*2026-06-14/, @io.string)
+    end
+
+    def test_raises_when_latest_backup_object_is_missing
+      store = FakeStore.new(
+        history("2026-06-15T040000"),
+        existing_keys: []
+      )
+      error = assert_raises(Error) { verify(store).run }
+      assert_match(/latest backup missing/, error.message)
+    end
+
+    def test_checks_existence_of_all_history_entries
+      store = FakeStore.new(history("2026-06-15T040000", "2026-06-14T040000"))
+      verify(store).run
+      assert_equal 2, store.head_checks.length
     end
 
     def test_parses_stamps_as_utc_regardless_of_local_timezone
-      store = FakeStore.new(%w[2026-06-15T040000])
+      store = FakeStore.new(history("2026-06-15T040000"))
       original_tz = ENV.fetch("TZ", nil)
       ENV["TZ"] = "America/Sao_Paulo"
       begin
-        io = StringIO.new
-        DB::Verify.new(env: env, io: io, store: store, now: now).run
-        assert_match(/7\.0h old/, io.string)
+        verify(store).run
+        assert_match(/7\.0h old/, @io.string)
       ensure
         ENV["TZ"] = original_tz
       end

@@ -24,6 +24,23 @@ module EiseronAutomation
         client.delete_object(bucket: bucket, key: key)
       end
 
+      def read_text(bucket, key)
+        client.get_object(bucket: bucket, key: key).body.read
+      rescue Aws::S3::Errors::NoSuchKey
+        nil
+      end
+
+      def write_text(bucket, key, text)
+        client.put_object(bucket: bucket, key: key, body: text)
+      end
+
+      def exists?(bucket, key)
+        client.head_object(bucket: bucket, key: key)
+        true
+      rescue Aws::S3::Errors::NotFound
+        false
+      end
+
       private
 
       def client

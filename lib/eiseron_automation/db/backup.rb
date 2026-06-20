@@ -20,6 +20,7 @@ module EiseronAutomation
         stamp = now.strftime("%Y-%m-%dT%H%M%SZ")
         object = "#{prefix}/#{stamp}.sql.age"
         dump_encrypt_upload(object)
+        append_history(object)
         prune_remote
         @io.puts "Backup uploaded: s3://#{bucket}/#{object}"
       end
@@ -49,11 +50,34 @@ module EiseronAutomation
         list
       end
 
+      def append_history(object)
+        history = read_history
+        history << object
+        store.write_text(bucket, history_key, "#{history.join("\n")}\n")
+      end
+
       def prune_remote
-        store.list(bucket, prefix).select { |key| key.end_with?(".sql.age") }.each do |key|
-          store.delete(bucket, key) if File.basename(key, ".sql.age") < cutoff
+        expired = expired_remote_keys
+        expired.each { |key| store.delete(bucket, key) }
+        return if expired.empty?
+
+        store.write_text(bucket, history_key, "#{(read_history - expired).join("\n")}\n")
+      end
+
+      def expired_remote_keys
+        store.list(bucket, prefix).select do |key|
+          key.end_with?(".sql.age") && File.basename(key, ".sql.age") < cutoff
         end
       end
+
+      def read_history
+        text = store.read_text(bucket, history_key)
+        return [] unless text
+
+        text.lines.map(&:strip).reject(&:empty?)
+      end
+
+      def history_key = "#{prefix}/history"
 
       def prune_local
         Dir.glob(File.join(backup_dir, "*.sql*")).each do |path|
@@ -61,9 +85,7 @@ module EiseronAutomation
         end
       end
 
-      def cutoff
-        (now - (retention_days * 86_400)).strftime("%Y-%m-%dT%H%M%SZ")
-      end
+      def cutoff = (now - (retention_days * 86_400)).strftime("%Y-%m-%dT%H%M%SZ")
 
       def backup_dir
         dir = @env.fetch("PROD_BACKUP_DIR", "/backups")
@@ -71,21 +93,10 @@ module EiseronAutomation
         dir
       end
 
-      def pg_host
-        @env.fetch("PGHOST", "#{prefix}-db")
-      end
-
-      def pg_user
-        @env.fetch("PGUSER", prefix)
-      end
-
-      def database
-        @env.fetch("PROD_BACKUP_DATABASE", "#{prefix}_prod")
-      end
-
-      def retention_days
-        Integer(@env.fetch("PROD_BACKUP_RETENTION_DAYS", "15"))
-      end
+      def pg_host = @env.fetch("PGHOST", "#{prefix}-db")
+      def pg_user = @env.fetch("PGUSER", prefix)
+      def database = @env.fetch("PROD_BACKUP_DATABASE", "#{prefix}_prod")
+      def retention_days = Integer(@env.fetch("PROD_BACKUP_RETENTION_DAYS", "15"))
 
       def prefix
         value = @env.fetch("PROD_BACKUP_NAME", "app")
@@ -94,17 +105,9 @@ module EiseronAutomation
         value
       end
 
-      def bucket
-        require_env("PROD_BACKUP_BUCKET")
-      end
-
-      def now
-        @now ||= Time.now.utc
-      end
-
-      def store
-        @store ||= R2.new(account_id: require_env("CLOUDFLARE_ACCOUNT_ID"))
-      end
+      def bucket = require_env("PROD_BACKUP_BUCKET")
+      def now = @now ||= Time.now.utc
+      def store = @store ||= R2.new(account_id: require_env("CLOUDFLARE_ACCOUNT_ID"))
 
       def require_env(name)
         value = @env[name].to_s

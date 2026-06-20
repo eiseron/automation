@@ -54,8 +54,11 @@ module EiseronAutomation
       end
 
       def latest_key
-        keys = store.list(bucket, prefix).select { |key| key.end_with?(".sql.age") }
-        raise Error, "no backups found under s3://#{bucket}/#{prefix}/" if keys.empty?
+        text = store.read_text(bucket, "#{prefix}/history")
+        raise Error, "no history at s3://#{bucket}/#{prefix}/history — has the backup ever run?" unless text
+
+        keys = text.lines.map(&:strip).reject(&:empty?).select { |key| key.end_with?(".sql.age") }
+        raise Error, "no backups in s3://#{bucket}/#{prefix}/history" if keys.empty?
 
         keys.max
       end

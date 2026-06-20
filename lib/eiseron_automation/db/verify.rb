@@ -18,18 +18,33 @@ module EiseronAutomation
         check_prod_backup_bucket_presence
         raise stale_error if age_hours > stale_hours
 
+        verify_existence
+
         @io.puts "Backup fresh: s3://#{bucket}/#{latest_object} (#{age_hours.round(1)}h old, threshold #{stale_hours}h)"
       end
 
       private
 
-      def latest_object
-        @latest_object ||= begin
-          objects = store.list(bucket, prefix).select { |key| key.end_with?(".sql.age") }
-          raise Error, "no backups under s3://#{bucket}/#{prefix}/ — has the scheduler ever run?" if objects.empty?
+      def history
+        @history ||= begin
+          text = store.read_text(bucket, "#{prefix}/history")
+          raise Error, "no history at s3://#{bucket}/#{prefix}/history — has the backup ever run?" unless text
 
-          objects.max
+          entries = text.lines.map(&:strip).reject(&:empty?).select { |key| key.end_with?(".sql.age") }
+          raise Error, "no backups in s3://#{bucket}/#{prefix}/history — has the scheduler ever run?" if entries.empty?
+
+          entries
         end
+      end
+
+      def latest_object
+        @latest_object ||= history.max
+      end
+
+      def verify_existence
+        missing = history.reject { |key| store.exists?(bucket, key) }
+        missing.each { |key| @io.puts "WARNING: missing backup #{key}" }
+        raise Error, "latest backup missing: s3://#{bucket}/#{latest_object}" if missing.include?(latest_object)
       end
 
       def stamp

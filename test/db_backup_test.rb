@@ -5,12 +5,14 @@ require "test_helper"
 module EiseronAutomation
   class DbBackupTest < Minitest::Test
     class FakeStore
-      attr_reader :uploaded, :deleted
+      attr_reader :uploaded, :deleted, :texts_written
 
-      def initialize(keys = [])
+      def initialize(keys = [], history_text: nil)
         @keys = keys
         @uploaded = []
         @deleted = []
+        @history_text = history_text
+        @texts_written = []
       end
 
       def list(_bucket, _prefix)
@@ -23,6 +25,15 @@ module EiseronAutomation
 
       def delete(_bucket, key)
         @deleted << key
+      end
+
+      def read_text(_bucket, _key)
+        @history_text
+      end
+
+      def write_text(_bucket, key, text)
+        @texts_written << { key: key, text: text }
+        @history_text = text
       end
     end
 
@@ -105,7 +116,7 @@ module EiseronAutomation
     def test_prunes_remote_objects_older_than_the_retention_window
       old = "afinados/2026-05-01T030000Z.sql.age"
       recent = "afinados/2026-06-12T030000Z.sql.age"
-      store = FakeStore.new([old, recent])
+      store = FakeStore.new([old, recent], history_text: "#{old}\n#{recent}\n")
       backup(store, env).run
       assert_includes store.deleted, old
       refute_includes store.deleted, recent
@@ -113,7 +124,7 @@ module EiseronAutomation
 
     def test_honours_a_custom_retention_window
       old = "afinados/2026-06-10T030000Z.sql.age"
-      store = FakeStore.new([old])
+      store = FakeStore.new([old], history_text: "#{old}\n")
       backup(store, env("PROD_BACKUP_RETENTION_DAYS" => "2")).run
       assert_includes store.deleted, old
     end
@@ -131,6 +142,35 @@ module EiseronAutomation
       vars = env("PROD_BACKUP_NAME" => "afinados;DROP")
       error = assert_raises(Error) { backup(FakeStore.new, vars).run }
       assert_match(/not a valid postgres identifier/, error.message)
+    end
+
+    def test_appends_new_key_to_history
+      store = FakeStore.new(history_text: "afinados/2026-06-12T030000Z.sql.age\n")
+      backup(store, env).run
+      history_write = store.texts_written.find { |w| w[:key] == "afinados/history" }
+      assert history_write
+      lines = history_write[:text].lines.map(&:strip)
+      assert_includes lines, "afinados/2026-06-12T030000Z.sql.age"
+      assert_includes lines, "afinados/2026-06-13T030000Z.sql.age"
+    end
+
+    def test_creates_history_when_none_exists
+      store = FakeStore.new
+      backup(store, env).run
+      history_write = store.texts_written.find { |w| w[:key] == "afinados/history" }
+      assert history_write
+      assert_equal "afinados/2026-06-13T030000Z.sql.age\n", history_write[:text]
+    end
+
+    def test_removes_pruned_keys_from_history
+      old = "afinados/2026-05-01T030000Z.sql.age"
+      recent = "afinados/2026-06-12T030000Z.sql.age"
+      store = FakeStore.new([old, recent], history_text: "#{old}\n#{recent}\n")
+      backup(store, env).run
+      last_write = store.texts_written.last
+      lines = last_write[:text].lines.map(&:strip)
+      refute_includes lines, old
+      assert_includes lines, recent
     end
   end
 end
