@@ -4,6 +4,8 @@ module EiseronAutomation
   class CLI
     COMMANDS = {
       "release tag" => :release_tag,
+      "preview trigger" => :preview_trigger,
+      "preview dispatch" => :preview_dispatch,
       "preview deploy" => :preview_deploy,
       "preview stop" => :preview_stop,
       "preview sweep" => :preview_sweep,
@@ -82,6 +84,8 @@ module EiseronAutomation
       release.tag_from_file(@env.fetch("VERSION_FILE", "VERSION"))
     end
 
+    def preview_trigger = PreviewTrigger.new(env: @env, io: @io).run
+    def preview_dispatch = PreviewDispatch.new(env: @env, io: @io).run
     def preview_deploy = Preview.new(env: @env, io: @io).deploy
     def preview_stop = Preview.new(env: @env, io: @io).stop
     def preview_sweep = Preview.new(env: @env, io: @io).sweep

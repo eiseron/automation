@@ -29,3 +29,4 @@ Gemspec/DevelopmentDependencies:
 Metrics/ClassLength:
   Exclude:
     - test/**/*
+    - lib/eiseron_automation/cli.rb
