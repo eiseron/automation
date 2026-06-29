@@ -26,26 +26,30 @@ module EiseronAutomation
       private
 
       def history
-        @history ||= begin
-          text = store.read_text(bucket, "#{prefix}/history")
-          raise Error, "no history at s3://#{bucket}/#{prefix}/history — has the backup ever run?" unless text
+        @history ||= build_history
+      end
 
-          entries = text.lines.map(&:strip).reject(&:empty?).select { |key| key.end_with?(".sql.age") }
-          raise Error, "no backups in s3://#{bucket}/#{prefix}/history — has the scheduler ever run?" if entries.empty?
+      def build_history
+        text = store.read_text(bucket, history_key)
+        raise Error, "no history at s3://#{bucket}/#{history_key} — has the backup ever run?" unless text
 
-          entries
-        end
+        parsed = History.parse(text)
+        raise Error, "no backups in s3://#{bucket}/#{history_key} — has the scheduler ever run?" if parsed.empty?
+
+        parsed
       end
 
       def latest_object
-        @latest_object ||= history.max
+        @latest_object ||= history.latest.key
       end
 
       def verify_existence
-        missing = history.reject { |key| store.exists?(bucket, key) }
+        missing = history.keys.reject { |key| store.exists?(bucket, key) }
         missing.each { |key| @io.puts "WARNING: missing backup #{key}" }
         raise Error, "latest backup missing: s3://#{bucket}/#{latest_object}" if missing.include?(latest_object)
       end
+
+      def history_key = "#{prefix}/history"
 
       def stamp
         @stamp ||= begin

@@ -99,6 +99,31 @@ module EiseronAutomation
       assert_operator restore_index, :<, verify_index
     end
 
+    def test_passes_integrity_when_recorded_hash_matches_the_download
+      sha256 = Digest::SHA256.hexdigest("ciphertext")
+      store = FakeStore.new("afinados/2026-06-13T0200Z.sql.age\t#{sha256}\n")
+      drill(store, env).run
+      assert_equal "afinados/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
+    end
+
+    def test_fails_integrity_when_recorded_hash_mismatches_the_download
+      store = FakeStore.new("afinados/2026-06-13T0200Z.sql.age\tdeadbeef\n")
+      error = assert_raises(Error) { drill(store, env).run }
+      assert_match(/integrity check failed/, error.message)
+    end
+
+    def test_does_not_decrypt_when_the_integrity_check_fails
+      store = FakeStore.new("afinados/2026-06-13T0200Z.sql.age\tdeadbeef\n")
+      assert_raises(Error) { drill(store, env).run }
+      refute(@runner.calls.any? { |call| call[:cmd].first == "age" })
+    end
+
+    def test_skips_the_integrity_check_when_history_has_no_hash
+      store = FakeStore.new(history("2026-06-13T0200Z.sql.age"))
+      drill(store, env).run
+      assert_equal "afinados/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
+    end
+
     def test_targets_the_drill_database_on_the_service_host
       vars = env("PROD_DRILL_DATABASE" => "drill", "PGHOST" => "postgres")
       drill(FakeStore.new(history("2026-06-13T0200Z.sql.age")), vars).run

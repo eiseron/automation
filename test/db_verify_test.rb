@@ -84,6 +84,12 @@ module EiseronAutomation
       verify(store, env("PROD_BACKUP_STALE_HOURS" => "48")).run
     end
 
+    def test_accepts_history_lines_that_carry_a_sha256
+      store = FakeStore.new("afinados/2026-06-15T040000Z.sql.age\tabc123\n")
+      verify(store).run
+      assert_equal ["afinados/2026-06-15T040000Z.sql.age"], store.head_checks
+    end
+
     def test_raises_when_the_newest_object_has_an_unparseable_name
       text = "afinados/zzz-mangled.sql.age\n"
       error = assert_raises(Error) { verify(FakeStore.new(text)).run }

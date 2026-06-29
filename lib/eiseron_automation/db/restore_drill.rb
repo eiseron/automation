@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "tmpdir"
 
 module EiseronAutomation
@@ -24,20 +25,31 @@ module EiseronAutomation
       end
 
       def run
-        key = latest_key
-        @io.puts "Restoring latest backup #{key} into the drill database"
-        Dir.mktmpdir { |dir| restore(key, dir) }
-        @io.puts "Restore drill passed: #{key} restored and verified."
+        entry = latest_entry
+        @io.puts "Restoring latest backup #{entry.key} into the drill database"
+        Dir.mktmpdir { |dir| restore(entry, dir) }
+        @io.puts "Restore drill passed: #{entry.key} restored and verified."
       end
 
       private
 
-      def restore(key, dir)
+      def restore(entry, dir)
         enc = File.join(dir, "backup.sql.age")
         dump = File.join(dir, "backup.sql")
-        store.download(bucket, key, enc)
+        store.download(bucket, entry.key, enc)
+        verify_integrity(entry, enc)
         decrypt(enc, dump, dir)
         load_dump(dump)
+      end
+
+      def verify_integrity(entry, enc)
+        return unless entry.sha256
+
+        actual = Digest::SHA256.file(enc).hexdigest
+        return if actual == entry.sha256
+
+        raise Error, "integrity check failed for #{entry.key}: " \
+                     "history sha256 #{entry.sha256}, downloaded #{actual}"
       end
 
       def decrypt(enc, dump, dir)
@@ -53,15 +65,17 @@ module EiseronAutomation
         @runner.run_stdin(verify_sql, @env.to_h, *psql, "-f", "-")
       end
 
-      def latest_key
-        text = store.read_text(bucket, "#{prefix}/history")
-        raise Error, "no history at s3://#{bucket}/#{prefix}/history — has the backup ever run?" unless text
+      def latest_entry
+        text = store.read_text(bucket, history_key)
+        raise Error, "no history at s3://#{bucket}/#{history_key} — has the backup ever run?" unless text
 
-        keys = text.lines.map(&:strip).reject(&:empty?).select { |key| key.end_with?(".sql.age") }
-        raise Error, "no backups in s3://#{bucket}/#{prefix}/history" if keys.empty?
+        parsed = History.parse(text)
+        raise Error, "no backups in s3://#{bucket}/#{history_key}" if parsed.empty?
 
-        keys.max
+        parsed.latest
       end
+
+      def history_key = "#{prefix}/history"
 
       def prepare_sql
         <<~SQL

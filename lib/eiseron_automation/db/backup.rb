@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "fileutils"
 
 module EiseronAutomation
@@ -19,8 +20,8 @@ module EiseronAutomation
         prune_local
         stamp = now.strftime("%Y-%m-%dT%H%M%SZ")
         object = "#{prefix}/#{stamp}.sql.age"
-        dump_encrypt_upload(object)
-        append_history(object)
+        sha256 = dump_encrypt_upload(object)
+        append_history(object, sha256)
         prune_remote
         @io.puts "Backup uploaded: s3://#{bucket}/#{object}"
       end
@@ -35,6 +36,7 @@ module EiseronAutomation
           ["age", *recipient_args, "--output", encrypted]
         )
         store.upload(bucket, object, encrypted)
+        Digest::SHA256.file(encrypted).hexdigest
       ensure
         File.delete(encrypted) if encrypted && File.exist?(encrypted)
       end
@@ -50,10 +52,8 @@ module EiseronAutomation
         list
       end
 
-      def append_history(object)
-        history = read_history
-        history << object
-        store.write_text(bucket, history_key, "#{history.join("\n")}\n")
+      def append_history(object, sha256)
+        store.write_text(bucket, history_key, read_history.add(object, sha256).dump)
       end
 
       def prune_remote
@@ -61,7 +61,7 @@ module EiseronAutomation
         expired.each { |key| store.delete(bucket, key) }
         return if expired.empty?
 
-        store.write_text(bucket, history_key, "#{(read_history - expired).join("\n")}\n")
+        store.write_text(bucket, history_key, read_history.without(expired).dump)
       end
 
       def expired_remote_keys
@@ -71,10 +71,7 @@ module EiseronAutomation
       end
 
       def read_history
-        text = store.read_text(bucket, history_key)
-        return [] unless text
-
-        text.lines.map(&:strip).reject(&:empty?)
+        History.parse(store.read_text(bucket, history_key))
       end
 
       def history_key = "#{prefix}/history"

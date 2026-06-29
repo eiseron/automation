@@ -149,9 +149,9 @@ module EiseronAutomation
       backup(store, env).run
       history_write = store.texts_written.find { |w| w[:key] == "afinados/history" }
       assert history_write
-      lines = history_write[:text].lines.map(&:strip)
-      assert_includes lines, "afinados/2026-06-12T030000Z.sql.age"
-      assert_includes lines, "afinados/2026-06-13T030000Z.sql.age"
+      keys = history_write[:text].lines.map { |line| line.strip.split("\t").first }
+      assert_includes keys, "afinados/2026-06-12T030000Z.sql.age"
+      assert_includes keys, "afinados/2026-06-13T030000Z.sql.age"
     end
 
     def test_creates_history_when_none_exists
@@ -159,7 +159,17 @@ module EiseronAutomation
       backup(store, env).run
       history_write = store.texts_written.find { |w| w[:key] == "afinados/history" }
       assert history_write
-      assert_equal "afinados/2026-06-13T030000Z.sql.age\n", history_write[:text]
+      sha256 = Digest::SHA256.hexdigest("cipher")
+      assert_equal "afinados/2026-06-13T030000Z.sql.age\t#{sha256}\n", history_write[:text]
+    end
+
+    def test_records_the_sha256_of_the_uploaded_object_in_history
+      store = FakeStore.new
+      backup(store, env).run
+      history_write = store.texts_written.find { |w| w[:key] == "afinados/history" }
+      key, sha256 = history_write[:text].lines.last.strip.split("\t")
+      assert_equal "afinados/2026-06-13T030000Z.sql.age", key
+      assert_equal Digest::SHA256.hexdigest("cipher"), sha256
     end
 
     def test_removes_pruned_keys_from_history
