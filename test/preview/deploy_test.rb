@@ -167,6 +167,18 @@ module EiseronAutomation
         assert_match(%r{https://feat-foo-preview\.afinados\.io/healthz}, err.message)
       end
 
+      def test_healthcheck_timeout_dumps_host_diagnostics_before_raising
+        ssh = FakeSsh.new
+        runner = FakeRunner.new(curl_status: "503")
+        with_compose_template("x:\n") do
+          assert_raises(Error) { deploy(ssh: ssh, runner: runner) }
+        end
+        probes = ssh.runs.join("\n")
+        assert_includes probes, "docker compose -p mr-feat-foo ps -a"
+        assert_includes probes, "docker inspect mr-feat-foo-afinados-1 --format '{{json .Config.Labels}}'"
+        assert_includes probes, "-H 'Host: feat-foo-preview.afinados.io' http://localhost/healthz"
+      end
+
       def test_rejects_kind_outside_mr_main
         ssh = FakeSsh.new
         err = with_compose_template("x:\n") do

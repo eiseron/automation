@@ -41,11 +41,14 @@ Metrics/ClassLength:
 
 Metrics/ParameterLists:
   Exclude:
+    - test/**/*
     - lib/eiseron_automation/preview/deploy.rb
     - lib/eiseron_automation/preview/stop.rb
     - lib/eiseron_automation/preview/sweep.rb
+    - lib/eiseron_automation/preview/diagnostics.rb
 
 Layout/LineLength:
   Exclude:
     - lib/eiseron_automation/preview/deploy.rb
     - lib/eiseron_automation/preview/teardown.rb
+    - lib/eiseron_automation/preview/diagnostics.rb

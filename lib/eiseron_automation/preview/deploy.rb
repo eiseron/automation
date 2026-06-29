@@ -170,7 +170,26 @@ module EiseronAutomation
 
           @sleeper.call(HEALTHCHECK_INTERVAL_SECONDS)
         end
+        dump_diagnostics
         raise Error, "healthcheck timed out after #{HEALTHCHECK_DEADLINE_SECONDS}s waiting for #{health_url}"
+      end
+
+      def dump_diagnostics
+        diagnostics.dump
+      rescue Error => e
+        @io.puts "[deploy] diagnostics unavailable: #{e.message}"
+      end
+
+      def diagnostics
+        Diagnostics.new(
+          io: @io, ssh: ssh, project: project, container: container,
+          host: "#{ref}-#{require_env('PREVIEW_DOMAIN_BASE')}",
+          health_path: health_path, port: 4000
+        )
+      end
+
+      def container
+        "#{project}-#{service}-1"
       end
 
       def healthy?
@@ -226,6 +245,7 @@ module EiseronAutomation
       def db_network = @env.fetch("EISERON_PREVIEW_DB_NETWORK", "postgres")
       def db_url_scheme = @env.fetch("EISERON_PREVIEW_DB_URL_SCHEME", "ecto")
       def health_path = @env.fetch("EISERON_PREVIEW_HEALTH_PATH", "/healthz")
+      def service = @env.fetch("EISERON_PREVIEW_SERVICE", app)
       def migrate_command = @env.fetch("EISERON_PREVIEW_MIGRATE_COMMAND", "mix ecto.migrate")
       def compose_template_path = require_env("EISERON_PREVIEW_COMPOSE_TEMPLATE")
 
