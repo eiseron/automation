@@ -10,6 +10,7 @@ stages:
   - lint
   - test
   - release
+  - build
   - sync
 
 workflow:
@@ -73,3 +74,40 @@ release-tag:
         - VERSION
   script:
     - ruby -Ilib bin/eiseron release tag
+
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.21.1-debug
+    entrypoint: [""]
+  tags:
+    - self-hosted
+  cache: []
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - Dockerfile
+        - eiseron_automation.gemspec
+        - .gitlab-ci.yml
+  script:
+    - AUTH_B64=$(printf 'gitlab-ci-token:%s' "$CI_JOB_TOKEN" | base64 | tr -d '\n')
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$AUTH_B64\"}}}" > /kaniko/.docker/config.json
+    - |
+      CACHE_FLAGS="--cache=true --cache-repo=$CI_REGISTRY_IMAGE/kaniko-cache --cache-ttl=168h"
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        /kaniko/executor \
+          --context "$CI_PROJECT_DIR" \
+          --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
+          --destination "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" \
+          --destination "$CI_REGISTRY_IMAGE:latest" \
+          --push-retry=3 \
+          $CACHE_FLAGS
+      else
+        /kaniko/executor \
+          --context "$CI_PROJECT_DIR" \
+          --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
+          --no-push \
+          $CACHE_FLAGS
+      fi
