@@ -5,6 +5,8 @@ require "socket"
 
 module EiseronAutomation
   class GitlabClientTest < Minitest::Test
+    HTTP_STATUS = { "200" => "200 OK", "404" => "404 Not Found", "500" => "500 Internal Server Error" }.freeze
+
     def setup
       @server = TCPServer.new("127.0.0.1", 0)
       @requests = []
@@ -54,6 +56,48 @@ module EiseronAutomation
       assert_equal 2, @requests.length
     end
 
+    def test_merge_request_state_returns_state_string
+      @stub_bodies = ['{"state":"merged"}']
+      assert_equal "merged", @client.merge_request_state("9")
+    end
+
+    def test_merge_request_state_returns_not_found_when_missing
+      @stub_codes = ["404"]
+      @stub_bodies = ['{"message":"404 Not found"}']
+      assert_equal "not_found", @client.merge_request_state("999")
+    end
+
+    def test_find_registry_repository_matches_path_suffix
+      @stub_bodies = ['[{"id":10,"path":"group/proj/foo"},{"id":42,"path":"group/proj/preview"}]']
+      assert_equal 42, @client.find_registry_repository("/preview")
+    end
+
+    def test_list_registry_tags_paginates
+      @stub_bodies = ['[{"name":"feat-foo"},{"name":"feat-foo-sha-abc"}]', "[]"]
+      assert_equal %w[feat-foo feat-foo-sha-abc], @client.list_registry_tags(42)
+    end
+
+    def test_delete_registry_tag_is_idempotent_on_missing_tag
+      @stub_codes = ["404"]
+      assert @client.delete_registry_tag(42, "feat-foo")
+    end
+
+    def test_merge_request_state_returns_error_on_server_failure
+      @stub_codes = ["500"]
+      @stub_bodies = ['{"message":"500 Server Error"}']
+      assert_equal "error", @client.merge_request_state("9")
+    end
+
+    def test_merge_request_state_returns_error_on_unknown_state_value
+      @stub_bodies = ['{"state":"locked"}']
+      assert_equal "error", @client.merge_request_state("9")
+    end
+
+    def test_delete_registry_tag_raises_on_non_404_failure
+      @stub_codes = ["500"]
+      assert_raises(Error) { @client.delete_registry_tag(42, "feat-foo") }
+    end
+
     private
 
     def serve
@@ -61,7 +105,9 @@ module EiseronAutomation
         socket = @server.accept
         @requests << read_request(socket)
         body = @stub_bodies&.shift || "{}"
-        socket.print "HTTP/1.1 200 OK\r\nContent-Length: #{body.bytesize}\r\n\r\n#{body}"
+        code = @stub_codes&.shift || "200"
+        status = HTTP_STATUS.fetch(code, "200 OK")
+        socket.print "HTTP/1.1 #{status}\r\nContent-Length: #{body.bytesize}\r\n\r\n#{body}"
         socket.close
       end
     rescue IOError, Errno::EBADF

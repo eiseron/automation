@@ -14,6 +14,13 @@ module EiseronAutomation
       raise(Error, "command failed: #{cmd.join(' ')}") unless $CHILD_STATUS.success?
     end
 
+    def capture(*cmd)
+      output = IO.popen(cmd, &:read)
+      raise(Error, "command failed: #{cmd.join(' ')}") unless $CHILD_STATUS.success?
+
+      output
+    end
+
     def pipeline(env, *commands)
       statuses = Open3.pipeline(*commands.map { |cmd| [env, *cmd] })
       commands.zip(statuses).each do |cmd, status|

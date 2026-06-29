@@ -42,38 +42,69 @@ Behaviour:
 Used by `stack/ci`'s `release.yml` template, which installs this gem and runs
 the command in consumers' `release` stage.
 
-### `eiseron preview deploy` / `stop` / `sweep`
+### `eiseron preview trigger` / `dispatch` / `deploy` / `stop` / `sweep`
 
-Per-merge-request preview environments on the shared host. These run from the
-product's **ops repo** (protected scope, where the host credentials live) and
-invoke the `eiseron.provisioning.preview_app` Ansible playbook over SSH, keeping
-the complex orchestration in tested Ruby instead of inline CI shell.
+Per-MR and per-main preview environments. The flow has two sides: the **app
+repo** (where build_image runs) sends a downstream pipeline trigger to the
+**ops repo**, which runs the deploy/stop/sweep against the shared preview VPS.
+Consumer-facing templates live in `stack/ci` (`preview-app.yml` on the app
+side, `preview-dispatch.yml` on the ops side).
 
-- `deploy` brings MR `$PREVIEW_MR_IID` up: assembles `DATABASE_URL` from the
-  tenant credentials (URL-encoding the password) merged with
-  `PREVIEW_APP_EXTRA_ENV`, then runs the playbook with `state=present`.
-- `stop` tears MR `$PREVIEW_MR_IID` down (`state=absent`).
-- `sweep` reconciles: lists deployed previews (`docker ps`) against the scan
-  project's still-open MRs (GitLab API) and tears down every preview whose MR
-  is no longer open.
+- `trigger` (app side) — POSTs to `PREVIEW_DEPLOYER_PROJECT`'s pipeline
+  trigger token with `PREVIEW_ACTION` and the per-MR / per-main payload.
+  Used by `deploy_preview` / `deploy_main` / `stop_preview` in
+  `preview-app.yml`. Trigger tokens bypass push-protection on the ops main
+  branch, which native `trigger:project:` bridges cannot.
+- `dispatch` (ops side) — reads `PREVIEW_ACTION` and routes to
+  `deploy` / `stop` / `sweep`.
+- `deploy` — full per-preview deploy on the host: writes docker auth,
+  pulls the per-ref image, stops any previous compose project for the ref,
+  ensures shared `<app>_app` / `<app>_admin` roles, recreates per-MR
+  `<app>_<ref>_app` / `<app>_<ref>_admin` roles and the `<app>_<ref>`
+  database with freshly-generated passwords (`SecureRandom`), runs the
+  migrate one-shot as the admin role, renders the compose template + brings
+  up the project, awaits the CF-Access-protected `/healthz` for 90s, then
+  deletes the per-ref tags from the registry.
+- `stop` — force teardown of a single MR ref regardless of state.
+  Compose `down -v --rmi all --remove-orphans` + drop DB + roles + delete
+  registry tag.
+- `sweep` — reconciler: lists `mr-*` compose projects on the host, reads
+  each container's `<app>.preview.mr_iid` label, queries the MR's state via
+  the GitLab API, and tears down anything that is no longer `opened` (the
+  `mr-` filter is the structural guarantee that the `main` project is
+  immune to sweep mistakes).
 
-Consumed by `stack/ci`'s `preview-deploy.yml` and `preview-sweep.yml` templates.
+Long refs are auto-compacted under Postgres' 63-byte identifier limit by
+appending an 8-char SHA1 prefix; two long refs with the same leading bytes
+get distinct DB/role names.
+
+Consumed by `stack/ci`'s `preview-app.yml` (app side) and
+`preview-dispatch.yml` (ops side).
 
 Environment:
 
 | variable | used by | purpose |
 |----------|---------|---------|
-| `EISERON_PREVIEW_APP` | all | product slug |
-| `EISERON_PREVIEW_SUFFIX` | all | host/name suffix (e.g. `-preview`) |
-| `EISERON_PREVIEW_ZONE` | deploy | preview DNS zone |
-| `EISERON_PREVIEW_PORT` | deploy | app container port (default `4000`) |
-| `EISERON_PREVIEW_DB_SCHEME` / `_DB_HOST` / `_DB_PORT` | deploy | `DATABASE_URL` parts |
-| `EISERON_PREVIEW_SCAN_PROJECT` | sweep | project whose open MRs are kept |
-| `PREVIEW_HOST_IP`, `ANSIBLE_PRIVATE_KEY_FILE` | all | host IP + SSH key path |
-| `PREVIEW_MR_IID` | deploy/stop | the merge request number |
-| `PREVIEW_APP_IMAGE`, `PREVIEW_APP_EXTRA_ENV` | deploy | image + extra env (JSON) |
-| `PREVIEW_TENANT_NAME`, `PREVIEW_TENANT_PASSWORD` | all | tenant role credentials |
-| `CI_API_V4_URL`, `PREVIEW_SWEEP_TOKEN` | sweep | GitLab API + read-api token |
+| `PREVIEW_ACTION` | dispatch | one of `deploy` / `stop` / `sweep` |
+| `PREVIEW_TRIGGER_ACTION` / `_KIND` / `_REF` / `_MR_IID` | trigger | payload to send downstream |
+| `PREVIEW_DEPLOYER_PROJECT` / `_TRIGGER_TOKEN` / `_REF` | trigger | downstream ops project + trigger token |
+| `PREVIEW_REF` / `_SHA` / `_KIND` / `_MR_IID` | dispatch/deploy/stop/sweep | identifies the deploy target |
+| `PREVIEW_IMAGE_REPO` | deploy | per-ref image lives at `<repo>:<ref>` |
+| `PREVIEW_IMAGE_PULL_USER` / `_TOKEN` | deploy | deploy token for `docker pull` on the host |
+| `PREVIEW_DOMAIN_BASE` | deploy | URL is `<ref>-<PREVIEW_DOMAIN_BASE><health_path>` |
+| `PREVIEW_SECRET_KEY_BASE` | deploy | Phoenix `SECRET_KEY_BASE` |
+| `PREVIEW_HEALTHCHECK_TOKEN_ID` / `_SECRET` | deploy | CF Access service token (bypasses SSO on `/healthz`) |
+| `PREVIEW_PROJECT_PATH` | registry | URL-encoded GitLab project path (e.g. `eiseron/afinados/afinados`) |
+| `EISERON_PREVIEW_APP_NAME` | deploy/stop/sweep | product slug; drives role / DB names |
+| `EISERON_PREVIEW_COMPOSE_TEMPLATE` | deploy | path to the compose template the consumer ships |
+| `EISERON_PREVIEW_MIX_ENV` | deploy | `MIX_ENV` for migrate + runtime (default `preview`) |
+| `EISERON_PREVIEW_HEALTH_PATH` | deploy | healthcheck path (default `/healthz`) |
+| `EISERON_PREVIEW_DB_CONTAINER` / `_NETWORK` / `_URL_SCHEME` | deploy | shared Postgres location + DSN scheme |
+| `EISERON_PREVIEW_MIGRATE_COMMAND` | deploy | one-shot migrate (default `mix ecto.migrate`) |
+| `EISERON_PREVIEW_SERVICE` | sweep | service name inside compose for `ps -q` (default = app name) |
+| `VPS_USER` / `PREVIEW_HOST_IP` / `ANSIBLE_SSH_PRIVATE_KEY` | deploy/stop/sweep | SSH onto the preview host |
+| `SHARED_PG_USER` | deploy/stop | superuser of the shared `shared-pg` container (trust via socket) |
+| `GITLAB_API_TOKEN`, `CI_API_V4_URL` | registry/sweep | GitLab API for MR state + tag delete |
 
 ### `eiseron go lint`
 

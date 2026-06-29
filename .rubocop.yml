@@ -19,9 +19,15 @@ Style/Documentation:
 
 Metrics/MethodLength:
   Max: 20
+  Exclude:
+    - lib/eiseron_automation/preview/deploy.rb
+    - lib/eiseron_automation/preview/teardown.rb
 
 Metrics/AbcSize:
   Max: 20
+  Exclude:
+    - lib/eiseron_automation/preview/deploy.rb
+    - test/**/*
 
 Gemspec/DevelopmentDependencies:
   Enabled: false
@@ -30,3 +36,16 @@ Metrics/ClassLength:
   Exclude:
     - test/**/*
     - lib/eiseron_automation/cli.rb
+    - lib/eiseron_automation/gitlab_client.rb
+    - lib/eiseron_automation/preview/deploy.rb
+
+Metrics/ParameterLists:
+  Exclude:
+    - lib/eiseron_automation/preview/deploy.rb
+    - lib/eiseron_automation/preview/stop.rb
+    - lib/eiseron_automation/preview/sweep.rb
+
+Layout/LineLength:
+  Exclude:
+    - lib/eiseron_automation/preview/deploy.rb
+    - lib/eiseron_automation/preview/teardown.rb

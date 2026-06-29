@@ -86,9 +86,9 @@ module EiseronAutomation
 
     def preview_trigger = PreviewTrigger.new(env: @env, io: @io).run
     def preview_dispatch = PreviewDispatch.new(env: @env, io: @io).run
-    def preview_deploy = Preview.new(env: @env, io: @io).deploy
-    def preview_stop = Preview.new(env: @env, io: @io).stop
-    def preview_sweep = Preview.new(env: @env, io: @io).sweep
+    def preview_deploy = Preview::Deploy.new(env: @env, io: @io).run
+    def preview_stop = Preview::Stop.new(env: @env, io: @io).run
+    def preview_sweep = Preview::Sweep.new(env: @env, io: @io).run
     def docs_publish = Docs.new(env: @env, io: @io).publish
     def go_lint = GoLint.new(io: @io).run
     def tofu_lint = TofuLint.new(io: @io).run
