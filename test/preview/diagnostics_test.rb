@@ -32,6 +32,9 @@ module EiseronAutomation
         build(ssh).dump
         joined = ssh.commands.join("\n")
         assert_includes joined, "docker compose -p main ps -a"
+        assert_includes joined, "docker inspect main-afinados-1 --format '{{json .State}}'"
+        assert_includes joined, "docker logs --tail 80 main-afinados-1"
+        assert_includes joined, "sed -E 's#(://[^:@ ]+:)[^@ ]+@#\\1***@#g'"
         assert_includes joined, "docker inspect main-afinados-1 --format '{{json .Config.Labels}}'"
         assert_includes joined, "docker inspect main-afinados-1 --format '{{json .NetworkSettings.Networks}}'"
         assert_includes joined, "docker exec main-afinados-1 wget -qO- --timeout=5 http://localhost:4000/up"

@@ -32,6 +32,8 @@ module EiseronAutomation
       def probes
         [
           ["compose ps", "docker compose -p #{@project} ps -a"],
+          ["container exit + state", "docker inspect #{@container} --format '{{json .State}}'"],
+          ["container logs (last 80, secrets redacted)", container_logs_probe],
           ["container labels", "docker inspect #{@container} --format '{{json .Config.Labels}}'"],
           ["container networks", "docker inspect #{@container} --format '{{json .NetworkSettings.Networks}}'"],
           ["phoenix direct on :#{@port}#{@health_path}",
@@ -40,6 +42,11 @@ module EiseronAutomation
           ["traefik discovery log tail", "docker logs traefik 2>&1 | tail -40"],
           ["traefik routers for #{@host}", traefik_routers_probe]
         ]
+      end
+
+      def container_logs_probe
+        redact = "sed -E 's#(://[^:@ ]+:)[^@ ]+@#\\1***@#g'"
+        "docker logs --tail 80 #{@container} 2>&1 | #{redact}"
       end
 
       def traefik_host_probe
