@@ -13,7 +13,10 @@ module EiseronAutomation
 
     def run
       action = require_in("PREVIEW_ACTION", ACTIONS)
-      @io.puts "preview action=#{action}"
+      kind = @env.fetch("PREVIEW_KIND", "")
+      @io.puts "preview action=#{action} kind=#{kind}"
+      return Preview::Pages.new(env: @env, io: @io, runner: @runner).run if kind == "pages"
+
       handlers.fetch(action).call
     end
 

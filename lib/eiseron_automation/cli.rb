@@ -5,6 +5,7 @@ module EiseronAutomation
     COMMANDS = {
       "release tag" => :release_tag,
       "preview trigger" => :preview_trigger,
+      "preview pages-trigger" => :preview_pages_trigger,
       "preview dispatch" => :preview_dispatch,
       "preview deploy" => :preview_deploy,
       "preview stop" => :preview_stop,
@@ -85,6 +86,7 @@ module EiseronAutomation
     end
 
     def preview_trigger = PreviewTrigger.new(env: @env, io: @io).run
+    def preview_pages_trigger = PreviewPagesTrigger.new(env: @env, io: @io).run
     def preview_dispatch = PreviewDispatch.new(env: @env, io: @io).run
     def preview_deploy = Preview::Deploy.new(env: @env, io: @io).run
     def preview_stop = Preview::Stop.new(env: @env, io: @io).run
