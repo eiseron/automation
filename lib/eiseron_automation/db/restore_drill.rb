@@ -43,7 +43,7 @@ module EiseronAutomation
       end
 
       def verify_integrity(entry, enc)
-        return unless entry.sha256
+        raise Error, "no integrity hash recorded for #{entry.key}" unless entry.sha256
 
         actual = Digest::SHA256.file(enc).hexdigest
         return if actual == entry.sha256

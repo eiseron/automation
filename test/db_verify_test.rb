@@ -38,7 +38,7 @@ module EiseronAutomation
     end
 
     def history(*stamps)
-      "#{stamps.map { |s| "afinados/#{s}Z.sql.age" }.join("\n")}\n"
+      "#{stamps.map { |s| "afinados/#{s}Z.sql.age\tsha-#{s}" }.join("\n")}\n"
     end
 
     def verify(store, vars = env, at: now)
@@ -73,7 +73,7 @@ module EiseronAutomation
     end
 
     def test_ignores_non_backup_entries_in_history
-      text = "afinados/9999-zzz-not-a-backup.txt\nafinados/2026-06-15T040000Z.sql.age\n"
+      text = "afinados/9999-zzz-not-a-backup.txt\nafinados/2026-06-15T040000Z.sql.age\tsha-latest\n"
       store = FakeStore.new(text)
       verify(store).run
     end
@@ -119,6 +119,20 @@ module EiseronAutomation
       )
       error = assert_raises(Error) { verify(store).run }
       assert_match(/latest backup missing/, error.message)
+    end
+
+    def test_warns_when_an_older_backup_has_no_integrity_hash
+      text = "afinados/2026-06-14T040000Z.sql.age\n" \
+             "afinados/2026-06-15T040000Z.sql.age\tsha-latest\n"
+      verify(FakeStore.new(text)).run
+      assert_match(/WARNING: backup without integrity hash.*2026-06-14/, @io.string)
+    end
+
+    def test_raises_when_the_latest_backup_has_no_integrity_hash
+      text = "afinados/2026-06-14T040000Z.sql.age\tsha-old\n" \
+             "afinados/2026-06-15T040000Z.sql.age\n"
+      error = assert_raises(Error) { verify(FakeStore.new(text)).run }
+      assert_match(/latest backup has no integrity hash/, error.message)
     end
 
     def test_checks_existence_of_all_history_entries

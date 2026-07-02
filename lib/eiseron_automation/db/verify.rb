@@ -19,6 +19,7 @@ module EiseronAutomation
         raise stale_error if age_hours > stale_hours
 
         verify_existence
+        verify_hash_coverage
 
         @io.puts "Backup fresh: s3://#{bucket}/#{latest_object} (#{age_hours.round(1)}h old, threshold #{stale_hours}h)"
       end
@@ -47,6 +48,14 @@ module EiseronAutomation
         missing = history.keys.reject { |key| store.exists?(bucket, key) }
         missing.each { |key| @io.puts "WARNING: missing backup #{key}" }
         raise Error, "latest backup missing: s3://#{bucket}/#{latest_object}" if missing.include?(latest_object)
+      end
+
+      def verify_hash_coverage
+        unhashed = history.keys.reject { |key| history.sha256_for(key) }
+        unhashed.each { |key| @io.puts "WARNING: backup without integrity hash #{key}" }
+        return unless unhashed.include?(latest_object)
+
+        raise Error, "latest backup has no integrity hash: s3://#{bucket}/#{latest_object}"
       end
 
       def history_key = "#{prefix}/history"

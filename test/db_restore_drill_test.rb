@@ -49,7 +49,8 @@ module EiseronAutomation
     end
 
     def history(*keys)
-      "#{keys.map { |k| "afinados/#{k}" }.join("\n")}\n"
+      sha = Digest::SHA256.hexdigest("ciphertext")
+      "#{keys.map { |k| "afinados/#{k}\t#{sha}" }.join("\n")}\n"
     end
 
     def drill(store, vars)
@@ -63,7 +64,8 @@ module EiseronAutomation
     end
 
     def test_ignores_non_backup_entries_in_history
-      text = "afinados/2026-06-13T0200Z.sql.age\nafinados/9999-zzz-not-a-backup.txt\n"
+      text = "afinados/2026-06-13T0200Z.sql.age\t#{Digest::SHA256.hexdigest('ciphertext')}\n" \
+             "afinados/9999-zzz-not-a-backup.txt\n"
       store = FakeStore.new(text)
       drill(store, env).run
       assert_equal "afinados/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
@@ -118,10 +120,10 @@ module EiseronAutomation
       refute(@runner.calls.any? { |call| call[:cmd].first == "age" })
     end
 
-    def test_skips_the_integrity_check_when_history_has_no_hash
-      store = FakeStore.new(history("2026-06-13T0200Z.sql.age"))
-      drill(store, env).run
-      assert_equal "afinados/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
+    def test_raises_when_the_drilled_backup_has_no_integrity_hash
+      store = FakeStore.new("afinados/2026-06-13T0200Z.sql.age\n")
+      error = assert_raises(Error) { drill(store, env).run }
+      assert_match(/no integrity hash recorded/, error.message)
     end
 
     def test_targets_the_drill_database_on_the_service_host
