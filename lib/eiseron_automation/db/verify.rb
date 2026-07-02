@@ -20,6 +20,7 @@ module EiseronAutomation
 
         verify_existence
         verify_hash_coverage
+        verify_lock_coverage
 
         @io.puts "Backup fresh: s3://#{bucket}/#{latest_object} (#{age_hours.round(1)}h old, threshold #{stale_hours}h)"
       end
@@ -56,6 +57,29 @@ module EiseronAutomation
         return unless unhashed.include?(latest_object)
 
         raise Error, "latest backup has no integrity hash: s3://#{bucket}/#{latest_object}"
+      end
+
+      def verify_lock_coverage
+        unless lock_prefix
+          @io.puts "Lock coverage check skipped: PROD_BACKUP_LOCK_PREFIX not set " \
+                   "(gem key-format drift only; lock presence is Terraform-managed)"
+          return
+        end
+
+        uncovered = history.keys.reject { |key| key.start_with?(lock_prefix) }
+        uncovered.each { |key| @io.puts "WARNING: backup outside the immutable lock prefix #{lock_prefix}: #{key}" }
+        if uncovered.include?(latest_object)
+          raise Error, "latest backup #{latest_object} is not under the immutable lock prefix " \
+                       "#{lock_prefix} — the R2 Object Lock rule would not protect it"
+        end
+
+        @io.puts "Lock coverage OK: latest backup under #{lock_prefix} (key-format check; " \
+                 "lock presence is Terraform-managed)"
+      end
+
+      def lock_prefix
+        @lock_prefix ||= @env["PROD_BACKUP_LOCK_PREFIX"].to_s
+        @lock_prefix.empty? ? nil : @lock_prefix
       end
 
       def history_key = "#{prefix}/history"

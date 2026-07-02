@@ -135,6 +135,33 @@ module EiseronAutomation
       assert_match(/latest backup has no integrity hash/, error.message)
     end
 
+    def test_skips_lock_coverage_when_no_lock_prefix_is_configured
+      store = FakeStore.new("afinados/db/2026-06-15T040000Z.sql.age\tsha-x\n")
+      verify(store).run
+      assert_match(/Lock coverage check skipped: PROD_BACKUP_LOCK_PREFIX not set/, @io.string)
+    end
+
+    def test_passes_and_reports_when_the_latest_backup_is_under_the_lock_prefix
+      store = FakeStore.new(history("2026-06-15T040000"))
+      verify(store, env("PROD_BACKUP_LOCK_PREFIX" => "afinados/2")).run
+      assert_match(%r{Lock coverage OK: latest backup under afinados/2}, @io.string)
+    end
+
+    def test_raises_when_the_latest_backup_is_outside_the_lock_prefix
+      store = FakeStore.new("afinados/db/2026-06-15T040000Z.sql.age\tsha-latest\n")
+      error = assert_raises(Error) do
+        verify(store, env("PROD_BACKUP_LOCK_PREFIX" => "afinados/2")).run
+      end
+      assert_match(/not under the immutable lock prefix/, error.message)
+    end
+
+    def test_warns_about_older_backups_outside_the_lock_prefix
+      text = "afinados/1999-01-01T000000Z.sql.age\tsha-old\n" \
+             "afinados/2026-06-15T040000Z.sql.age\tsha-latest\n"
+      verify(FakeStore.new(text), env("PROD_BACKUP_LOCK_PREFIX" => "afinados/2")).run
+      assert_match(/WARNING: backup outside the immutable lock prefix.*1999/, @io.string)
+    end
+
     def test_checks_existence_of_all_history_entries
       store = FakeStore.new(history("2026-06-15T040000", "2026-06-14T040000"))
       verify(store).run
