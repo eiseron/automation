@@ -122,6 +122,20 @@ module EiseronAutomation
         assert_includes shared_script, "CREATE ROLE afinados_app NOLOGIN"
       end
 
+      def test_per_mr_grants_app_role_table_privileges_in_target_db
+        ssh = FakeSsh.new
+        with_compose_template("x:\n") { deploy(ssh: ssh) }
+        roles_script = ssh.scripts.find { |s| s.include?("CREATE ROLE") && s.include?("CREATE DATABASE") }
+        refute_nil roles_script
+        assert_includes roles_script, 'psql -U postgres -d "afinados_feat-foo"'
+        assert_includes roles_script, 'GRANT USAGE ON SCHEMA public TO "afinados_feat-foo_app"'
+        assert_includes roles_script,
+                        'ALTER DEFAULT PRIVILEGES FOR ROLE "afinados_feat-foo_admin" IN SCHEMA public'
+        assert_includes roles_script,
+                        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "afinados_feat-foo_app"'
+        assert_includes roles_script, 'GRANT USAGE, SELECT ON SEQUENCES TO "afinados_feat-foo_app"'
+      end
+
       def test_migrate_runs_with_admin_role_and_mix_env_preview
         ssh = FakeSsh.new
         with_compose_template("x:\n") { deploy(ssh: ssh) }

@@ -110,6 +110,13 @@ module EiseronAutomation
           REVOKE ALL ON DATABASE "#{db_name}" FROM PUBLIC;
           GRANT CONNECT ON DATABASE "#{db_name}" TO "#{app_role}", "#{admin_role}";
           SQL
+          docker exec -i #{db_container} psql -U #{shared_user} -d "#{db_name}" -v ON_ERROR_STOP=1 <<'SQL'
+          GRANT USAGE ON SCHEMA public TO "#{app_role}";
+          ALTER DEFAULT PRIVILEGES FOR ROLE "#{admin_role}" IN SCHEMA public
+            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "#{app_role}";
+          ALTER DEFAULT PRIVILEGES FOR ROLE "#{admin_role}" IN SCHEMA public
+            GRANT USAGE, SELECT ON SEQUENCES TO "#{app_role}";
+          SQL
         BASH
       end
 
