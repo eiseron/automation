@@ -31,6 +31,7 @@ module EiseronAutomation
       "ci update" => :ci_update,
       "ci check" => :ci_check,
       "ci coverage-gate" => :ci_coverage_gate,
+      "observability deploy" => :observability_deploy,
       "notify ci-failure" => :notify_ci_failure
     }.freeze
 
@@ -115,6 +116,7 @@ module EiseronAutomation
     def ci_check = CI::Lock.build(env: @env, io: @io).check
     def ci_coverage_gate = CI::CoverageGate.new(env: @env, io: @io, err: @err, args: @args).run
 
+    def observability_deploy = Observability::Deploy.new(env: @env, io: @io).deploy
     def notify_ci_failure = Notify::CIFailure.new(env: @env, io: @io, err: @err).run
 
     def require_env(name)
