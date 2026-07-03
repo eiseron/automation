@@ -7,9 +7,10 @@ require "uri"
 
 module EiseronAutomation
   class GitlabClient
-    def initialize(api_url:, project_id:, token:)
+    def initialize(api_url:, project_id:, token:, token_header: "PRIVATE-TOKEN")
       @base = "#{api_url}/projects/#{project_id}"
       @token = token
+      @token_header = token_header
     end
 
     def tag_exists?(tag)
@@ -114,6 +115,31 @@ module EiseronAutomation
       end
     end
 
+    def pipeline_jobs(pipeline_id)
+      jobs = []
+      page = 1
+      while page <= 50
+        response = http(Net::HTTP::Get, "/pipelines/#{encode(pipeline_id.to_s)}/jobs?per_page=100&page=#{page}")
+        unless response.is_a?(Net::HTTPSuccess)
+          raise Error, "GET /pipelines/#{pipeline_id}/jobs failed: #{response.code}"
+        end
+
+        batch = JSON.parse(response.body)
+        break if batch.empty?
+
+        jobs.concat(batch)
+        page += 1
+      end
+      jobs
+    end
+
+    def last_successful_pipeline(ref)
+      response = http(Net::HTTP::Get, "/pipelines?ref=#{encode(ref)}&status=success&per_page=1")
+      raise Error, "GET /pipelines failed: #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body).first
+    end
+
     private
 
     def encode(value)
@@ -130,7 +156,7 @@ module EiseronAutomation
     def http(verb, path, params = nil, auth: true)
       uri = URI("#{@base}#{path}")
       request = verb.new(uri)
-      request["PRIVATE-TOKEN"] = @token if auth
+      request[@token_header] = @token if auth
       request.set_form_data(params) if params
       Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https") do |client|
         client.request(request)

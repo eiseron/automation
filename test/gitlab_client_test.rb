@@ -98,6 +98,49 @@ module EiseronAutomation
       assert_raises(Error) { @client.delete_registry_tag(42, "feat-foo") }
     end
 
+    def test_pipeline_jobs_paginates_across_pages
+      @stub_bodies = [
+        '[{"id":1,"name":"lint"},{"id":2,"name":"test"}]',
+        '[{"id":3,"name":"deploy"}]',
+        "[]"
+      ]
+      jobs = @client.pipeline_jobs("99")
+      assert_equal 3, jobs.length
+      assert_equal "lint", jobs.fetch(0)["name"]
+      assert_equal "deploy", jobs.fetch(2)["name"]
+      assert_equal "GET /api/v4/projects/123/pipelines/99/jobs?per_page=100&page=1 HTTP/1.1",
+                   @requests.fetch(0)[:line]
+    end
+
+    def test_last_successful_pipeline_returns_first_result
+      @stub_bodies = ['[{"id":42,"status":"success"}]']
+      pipeline = @client.last_successful_pipeline("main")
+      assert_equal 42, pipeline["id"]
+      assert_includes @requests.fetch(0)[:line], "pipelines?ref=main&status=success"
+    end
+
+    def test_last_successful_pipeline_returns_nil_when_none_found
+      @stub_bodies = ["[]"]
+      assert_nil @client.last_successful_pipeline("feat-branch")
+    end
+
+    def test_gitlab_client_uses_private_token_by_default
+      @client.pipeline_jobs("1")
+      assert_equal "secret", @requests.fetch(0)[:headers]["private-token"]
+    end
+
+    def test_gitlab_client_uses_custom_token_header
+      client = GitlabClient.new(
+        api_url: "http://127.0.0.1:#{@server.addr[1]}/api/v4",
+        project_id: "123",
+        token: "job-tok",
+        token_header: "JOB-TOKEN"
+      )
+      client.pipeline_jobs("1")
+      assert_equal "job-tok", @requests.fetch(0)[:headers]["job-token"]
+      refute @requests.fetch(0)[:headers].key?("private-token")
+    end
+
     private
 
     def serve

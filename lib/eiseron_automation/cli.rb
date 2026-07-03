@@ -30,10 +30,11 @@ module EiseronAutomation
       "ci install" => :ci_install,
       "ci update" => :ci_update,
       "ci check" => :ci_check,
+      "ci coverage-gate" => :ci_coverage_gate,
       "notify ci-failure" => :notify_ci_failure
     }.freeze
 
-    ARG_COMMANDS = ["ci update"].freeze
+    ARG_COMMANDS = ["ci update", "ci coverage-gate"].freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
       @argv = argv
@@ -112,6 +113,7 @@ module EiseronAutomation
     def ci_install = CI::Lock.build(env: @env, io: @io).install
     def ci_update = CI::Lock.build(env: @env, io: @io).update(@args)
     def ci_check = CI::Lock.build(env: @env, io: @io).check
+    def ci_coverage_gate = CI::CoverageGate.new(env: @env, io: @io, err: @err, args: @args).run
 
     def notify_ci_failure = Notify::CIFailure.new(env: @env, io: @io, err: @err).run
 
