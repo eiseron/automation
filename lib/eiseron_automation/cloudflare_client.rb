@@ -13,12 +13,27 @@ module EiseronAutomation
       @base = base
     end
 
-    def deployments(account_id, project)
-      path = "/accounts/#{account_id}/pages/projects/#{project}/deployments?env=preview&per_page=100"
-      response = request(Net::HTTP::Get, path)
-      raise Error, "list deployments failed: #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+    PER_PAGE = 25
 
-      JSON.parse(response.body).fetch("result", [])
+    def deployments(account_id, project)
+      base_path = "/accounts/#{account_id}/pages/projects/#{project}/deployments?per_page=#{PER_PAGE}"
+      results = []
+      page = 1
+      loop do
+        response = request(Net::HTTP::Get, "#{base_path}&page=#{page}")
+        unless response.is_a?(Net::HTTPSuccess)
+          raise Error, "list deployments failed: #{response.code} #{response.body}"
+        end
+
+        body = JSON.parse(response.body)
+        page_results = body.fetch("result", [])
+        results.concat(page_results)
+        total = body.dig("result_info", "total_count")&.to_i
+        break if page_results.length < PER_PAGE || (total && results.length >= total)
+
+        page += 1
+      end
+      results
     end
 
     def delete_deployment(account_id, project, deployment_id)
@@ -26,7 +41,7 @@ module EiseronAutomation
       response = request(Net::HTTP::Delete, path)
       return if response.is_a?(Net::HTTPSuccess)
 
-      raise Error, "delete deployment #{deployment_id} failed: #{response.code}"
+      raise Error, "delete deployment #{deployment_id} failed: #{response.code} #{response.body}"
     end
 
     private
