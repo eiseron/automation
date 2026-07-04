@@ -13,11 +13,14 @@ module EiseronAutomation
         @http = http || method(:http_get)
       end
 
+      SAFE_IDENT = /\A[a-zA-Z_][a-zA-Z0-9_-]*\z/
+
       def deploy
         tag = require_env("CI_COMMIT_SHORT_SHA")
         @io.puts "Deploying observability #{tag} (pre-built image, skip-push)"
         kamal("deploy", "--skip-push", "--version=#{tag}")
         reset_root(tag) if reset_requested?
+        ensure_pg_monitor_role
         @io.puts "Converging accessories from the manifest"
         kamal("accessory", "reboot", "all", "--version=#{tag}")
         verify_ingestion
@@ -26,6 +29,44 @@ module EiseronAutomation
       private
 
       def reset_requested? = @env["OBSERVABILITY_RESET_METADATA"] == "1"
+
+      def ensure_pg_monitor_role
+        password = @env["OBSERVABILITY_PG_MONITOR_PASSWORD"].to_s
+        return @io.puts "Skipping pg_monitor role (OBSERVABILITY_PG_MONITOR_PASSWORD unset)" if password.empty?
+        raise Error, "pg_monitor password must be alphanumeric" unless password.match?(/\A[A-Za-z0-9]+\z/)
+
+        container = safe_ident("OBSERVABILITY_PG_CONTAINER", "platform-db")
+        running = @runner.capture("ssh", *ssh_args, "docker ps -q -f name=^#{container}$").strip
+        return @io.puts "Skipping pg_monitor role (#{container} not running)" if running.empty?
+
+        role = safe_ident("OBSERVABILITY_PG_MONITOR_USER", "monitoring")
+        admin = safe_ident("PG_ADMIN_USER", "eiseron")
+        @io.puts "Ensuring #{role} monitoring role on #{container}"
+        @runner.run_stdin(
+          build_pg_monitor_sql(password), @env,
+          "ssh", *ssh_args,
+          "docker exec -i #{container} psql -U #{admin} -d postgres " \
+          "-v ON_ERROR_STOP=1 -v rname=#{role} -v climit=5"
+        )
+      end
+
+      def build_pg_monitor_sql(password)
+        <<~SQL
+          \\set rpw '#{password}'
+          SELECT format('CREATE ROLE %I LOGIN', :'rname')
+          WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'rname')
+          \\gexec
+          ALTER ROLE :"rname" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT :climit PASSWORD :'rpw';
+          GRANT pg_monitor TO :"rname";
+        SQL
+      end
+
+      def safe_ident(name, default)
+        value = @env.fetch(name, default)
+        raise Error, "#{name} is not a safe identifier: #{value}" unless value.match?(SAFE_IDENT)
+
+        value
+      end
 
       def reset_root(tag)
         @io.puts "Resetting OpenObserve root user"

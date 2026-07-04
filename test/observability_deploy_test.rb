@@ -5,7 +5,7 @@ require "test_helper"
 module EiseronAutomation
   class ObservabilityDeployTest < Minitest::Test
     class FakeRunner
-      attr_reader :calls
+      attr_reader :calls, :stdin_inputs
 
       def initialize(capture_result: "")
         @calls = []
@@ -13,6 +13,11 @@ module EiseronAutomation
       end
 
       def run(_env, *cmd)
+        @calls << cmd
+      end
+
+      def run_stdin(input, _env, *cmd)
+        (@stdin_inputs ||= []) << input
         @calls << cmd
       end
 
@@ -113,6 +118,69 @@ module EiseronAutomation
       deploy(FakeRunner.new, env, http: http).deploy
       assert_equal "https://observe.example.test/api/default/streams", seen[:url]
       assert_equal "Basic dXNlcjpwYXNz", seen[:auth]
+    end
+
+    def pg_env(over = {})
+      env({ "OBSERVABILITY_PG_MONITOR_PASSWORD" => "GenPw123", "PG_ADMIN_USER" => "eiseron" }.merge(over))
+    end
+
+    def pg_call(runner)
+      runner.calls.find { |cmd| cmd.join(" ").include?("psql") && cmd.join(" ").include?("rname=") }
+    end
+
+    def test_pg_monitor_role_is_ensured_over_ssh_when_password_present
+      runner = FakeRunner.new(capture_result: "platformdbcid\n")
+      deploy(runner, pg_env).deploy
+      call = pg_call(runner)
+      refute_nil call, "pg_monitor role must be ensured when the password is set and the container runs"
+      assert_includes call, "ssh"
+      assert_match(/docker exec -i platform-db psql -U eiseron .*-v rname=monitoring -v climit=5/, call.join(" "))
+    end
+
+    def test_pg_monitor_password_is_passed_via_stdin_not_argv
+      runner = FakeRunner.new(capture_result: "platformdbcid\n")
+      deploy(runner, pg_env("OBSERVABILITY_PG_MONITOR_PASSWORD" => "SecretPw99")).deploy
+      call = pg_call(runner)
+      refute_includes call.join(" "), "SecretPw99", "password must never appear in the command argv"
+      sql = runner.stdin_inputs.last.to_s
+      assert_includes sql, "\\set rpw 'SecretPw99'"
+      assert_includes sql, "GRANT pg_monitor TO :\"rname\""
+    end
+
+    def test_pg_monitor_role_runs_before_accessory_reboot
+      runner = FakeRunner.new(capture_result: "platformdbcid\n")
+      deploy(runner, pg_env).deploy
+      pg_index = runner.calls.index { |cmd| cmd.join(" ").include?("rname=monitoring") }
+      reboot_index = runner.calls.index { |cmd| cmd.join(" ") == "kamal accessory reboot all --version=abc1234" }
+      assert_operator pg_index, :<, reboot_index, "the role must exist before the exporter accessory boots"
+    end
+
+    def test_pg_monitor_role_is_skipped_without_password
+      runner = FakeRunner.new(capture_result: "platformdbcid\n")
+      deploy(runner, env).deploy
+      assert_nil pg_call(runner), "role must be skipped when OBSERVABILITY_PG_MONITOR_PASSWORD is unset"
+    end
+
+    def test_pg_monitor_role_is_skipped_when_container_absent
+      runner = FakeRunner.new(capture_result: "")
+      deploy(runner, pg_env).deploy
+      assert_nil pg_call(runner), "role must be skipped when platform-db is not running"
+    end
+
+    def test_pg_monitor_rejects_an_unsafe_role_name
+      runner = FakeRunner.new(capture_result: "platformdbcid\n")
+      error = assert_raises(Error) { deploy(runner, pg_env("OBSERVABILITY_PG_MONITOR_USER" => "mon; DROP")).deploy }
+      assert_match(/not a safe identifier/, error.message)
+    end
+
+    def test_pg_monitor_rejects_a_non_alphanumeric_password
+      runner = FakeRunner.new(capture_result: "platformdbcid\n")
+      ["pw'injection", "pw\\backslash", "pw with space", "pw@host"].each do |bad|
+        error = assert_raises(Error) do
+          deploy(runner, pg_env("OBSERVABILITY_PG_MONITOR_PASSWORD" => bad)).deploy
+        end
+        assert_match(/must be alphanumeric/, error.message, "must reject #{bad.inspect}")
+      end
     end
 
     def test_verify_is_skipped_without_auth
