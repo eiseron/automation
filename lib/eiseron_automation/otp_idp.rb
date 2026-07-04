@@ -19,7 +19,7 @@ module EiseronAutomation
       end
 
       idp_id = resolve_idp_id
-      import_id = "#{@account_id}/#{idp_id}"
+      import_id = "accounts/#{@account_id}/#{idp_id}"
       @io.puts "Importing OTP IdP #{idp_id}..."
       result = @executor.call("tofu", "import", RESOURCE_ADDRESS, import_id)
       raise Error, "tofu import failed" unless result

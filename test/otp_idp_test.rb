@@ -36,13 +36,22 @@ module EiseronAutomation
       otp(providers: [{ "id" => "idp-abc", "type" => "onetimepin" }]).import
 
       assert_equal 1, @calls.length
-      assert_equal ["tofu", "import", OtpIdp::RESOURCE_ADDRESS, "#{ACCOUNT_ID}/idp-abc"], @calls.first
+      assert_equal ["tofu", "import", OtpIdp::RESOURCE_ADDRESS, "accounts/#{ACCOUNT_ID}/idp-abc"], @calls.first
     end
 
     def test_import_prints_idp_id
       otp(providers: [{ "id" => "idp-abc", "type" => "onetimepin" }]).import
 
       assert_includes @io.string, "idp-abc"
+    end
+
+    def test_import_id_uses_accounts_discriminator_prefix
+      otp(providers: [{ "id" => "idp-abc", "type" => "onetimepin" }]).import
+
+      import_id = @calls.first.last
+      assert_equal "accounts/#{ACCOUNT_ID}/idp-abc", import_id
+      assert import_id.start_with?("accounts/"),
+             "Cloudflare v5 import id needs the accounts/ discriminator segment"
     end
 
     def test_import_skips_when_already_in_state
