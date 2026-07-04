@@ -100,6 +100,42 @@ module EiseronAutomation
       assert_includes request[:line], "/dep1"
     end
 
+    def test_identity_providers_returns_result_array_on_success
+      @stub_bodies << JSON.dump("success" => true, "result" => [{ "id" => "idp-1", "type" => "onetimepin" }])
+      @stub_codes << "200"
+
+      result = @client.identity_providers("acct-1")
+
+      assert_equal [{ "id" => "idp-1", "type" => "onetimepin" }], result
+    end
+
+    def test_identity_providers_sends_bearer_token
+      @stub_bodies << JSON.dump("success" => true, "result" => [])
+      @stub_codes << "200"
+
+      @client.identity_providers("acct-1")
+
+      assert_equal "Bearer test-token", @requests.fetch(0)[:headers]["authorization"]
+    end
+
+    def test_identity_providers_raises_on_http_failure
+      @stub_bodies << '{"errors":[{"message":"Unauthorized"}]}'
+      @stub_codes << "400"
+
+      error = assert_raises(Error) { @client.identity_providers("acct-1") }
+
+      assert_includes error.message, "400"
+    end
+
+    def test_identity_providers_raises_on_api_error
+      @stub_bodies << JSON.dump("success" => false, "errors" => [{ "message" => "bad token" }])
+      @stub_codes << "200"
+
+      error = assert_raises(Error) { @client.identity_providers("acct-1") }
+
+      assert_includes error.message, "bad token"
+    end
+
     def test_delete_deployment_raises_with_body_on_failure
       @stub_bodies << '{"errors":[{"message":"Deployment not found"}]}'
       @stub_codes << "400"

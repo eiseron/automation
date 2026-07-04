@@ -3,6 +3,7 @@
 require_relative "eiseron_automation/version"
 require_relative "eiseron_automation/gitlab_client"
 require_relative "eiseron_automation/cloudflare_client"
+require_relative "eiseron_automation/otp_idp"
 require_relative "eiseron_automation/release"
 require_relative "eiseron_automation/docs"
 require_relative "eiseron_automation/go_lint"

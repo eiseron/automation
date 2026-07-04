@@ -32,7 +32,8 @@ module EiseronAutomation
       "ci check" => :ci_check,
       "ci coverage-gate" => :ci_coverage_gate,
       "observability deploy" => :observability_deploy,
-      "notify ci-failure" => :notify_ci_failure
+      "notify ci-failure" => :notify_ci_failure,
+      "cf import-otp-idp" => :cf_import_otp_idp
     }.freeze
 
     ARG_COMMANDS = ["ci update", "ci coverage-gate"].freeze
@@ -118,6 +119,11 @@ module EiseronAutomation
 
     def observability_deploy = Observability::Deploy.new(env: @env, io: @io).deploy
     def notify_ci_failure = Notify::CIFailure.new(env: @env, io: @io, err: @err).run
+
+    def cf_import_otp_idp
+      cf_client = CloudflareClient.new(token: require_env("TF_VAR_cloudflare_api_token"))
+      OtpIdp.new(cf_client: cf_client, account_id: require_env("TF_VAR_cloudflare_account_id"), io: @io).import
+    end
 
     def require_env(name)
       value = @env[name].to_s

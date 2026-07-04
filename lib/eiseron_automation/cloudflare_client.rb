@@ -36,6 +36,18 @@ module EiseronAutomation
       results
     end
 
+    def identity_providers(account_id)
+      response = request(Net::HTTP::Get, "/accounts/#{account_id}/access/identity_providers")
+      unless response.is_a?(Net::HTTPSuccess)
+        raise Error, "list identity providers failed: #{response.code} #{response.body}"
+      end
+
+      body = JSON.parse(response.body)
+      raise Error, "identity providers API error: #{body['errors']}" unless body["success"]
+
+      body.fetch("result", [])
+    end
+
     def delete_deployment(account_id, project, deployment_id)
       path = "/accounts/#{account_id}/pages/projects/#{project}/deployments/#{deployment_id}?force=true"
       response = request(Net::HTTP::Delete, path)
