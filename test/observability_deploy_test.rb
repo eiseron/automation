@@ -63,6 +63,24 @@ module EiseronAutomation
       assert_match(%r{docker exec a1b2c3 /openobserve reset --component root}, reset.join(" "))
     end
 
+    def test_web_is_restarted_after_reset_so_it_reloads_metadata
+      runner = FakeRunner.new(capture_result: "a1b2c3\n")
+      deploy(runner, env("OBSERVABILITY_RESET_METADATA" => "1")).deploy
+      joined = runner.calls.map { |cmd| cmd.join(" ") }
+      reset_i = joined.index { |c| c.include?("openobserve reset --component root") }
+      restart_i = joined.index { |c| c.include?("docker restart a1b2c3") }
+      refute_nil reset_i, "reset --component root must be called when OBSERVABILITY_RESET_METADATA=1"
+      refute_nil restart_i, "web container must be restarted so it reloads the reset metadata"
+      assert_operator restart_i, :>, reset_i, "restart must happen after the reset, not before"
+    end
+
+    def test_web_is_not_restarted_when_reset_is_skipped
+      runner = FakeRunner.new(capture_result: "a1b2c3")
+      deploy(runner, env).deploy
+      refute(runner.calls.any? { |cmd| cmd.join(" ").include?("docker restart") },
+             "web must not be restarted when no reset was requested")
+    end
+
     def test_root_reset_raises_when_container_missing
       runner = FakeRunner.new(capture_result: "")
       error = assert_raises(Error) { deploy(runner, env("OBSERVABILITY_RESET_METADATA" => "1")).deploy }

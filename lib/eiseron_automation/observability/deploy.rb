@@ -34,6 +34,8 @@ module EiseronAutomation
         raise Error, "unexpected container id from docker ps" unless cid.match?(/\A[0-9a-f]+\z/)
 
         @runner.run(@env, "ssh", *ssh_args, "docker exec #{cid} /openobserve reset --component root")
+        @io.puts "Restarting observability-web so it reloads the reset metadata"
+        @runner.run(@env, "ssh", *ssh_args, "docker restart #{cid}")
       end
 
       def verify_ingestion
