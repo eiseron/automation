@@ -46,6 +46,7 @@ Metrics/ParameterLists:
     - lib/eiseron_automation/preview/stop.rb
     - lib/eiseron_automation/preview/sweep.rb
     - lib/eiseron_automation/preview/diagnostics.rb
+    - lib/eiseron_automation/db/schedule.rb
 
 Layout/LineLength:
   Exclude:

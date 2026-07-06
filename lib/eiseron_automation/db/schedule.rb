@@ -5,12 +5,13 @@ module EiseronAutomation
     class Schedule
       SIGNALS = %w[TERM INT].freeze
 
-      def initialize(env: ENV, io: $stdout, backup: nil, clock: Clock.new, trapper: Signal)
+      def initialize(env: ENV, io: $stdout, backup: nil, clock: Clock.new, trapper: Signal, telegram: nil)
         @env = env
         @io = io
         @backup = backup
         @clock = clock
         @trapper = trapper
+        @telegram = telegram
         @heartbeat = Heartbeat.new(env: env, clock: clock)
         @stopping = false
       end
@@ -56,6 +57,27 @@ module EiseronAutomation
         raise failure if failure
       rescue StandardError => e
         @io.puts "Backup failed: #{e.message}"
+        notify_failure(e)
+      end
+
+      def notify_failure(error)
+        t = telegram
+        return if t.nil?
+
+        name = @env.fetch("PROD_BACKUP_NAME", "app")
+        t.deliver(text: "Backup failed on #{name}: #{error.message}")
+      rescue StandardError => e
+        @io.puts "Telegram notification failed: #{e.message}"
+      end
+
+      def telegram
+        return @telegram unless @telegram.nil?
+
+        token = @env.fetch("TELEGRAM_BOT_TOKEN", "")
+        chat  = @env.fetch("TELEGRAM_CHAT_ID", "")
+        return nil if token.empty? || chat.empty?
+
+        Notify::Telegram.new(env: @env, io: @io)
       end
 
       def backup

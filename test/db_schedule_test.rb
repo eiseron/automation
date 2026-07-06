@@ -63,6 +63,12 @@ module EiseronAutomation
         [sched, backup]
       end
 
+      def fake_telegram
+        delivered = []
+        telegram = Struct.new(:delivered) { def deliver(text:) = delivered << text }.new(delivered)
+        [telegram, delivered]
+      end
+
       def stop_after_two_sleeps(sched)
         count = 0
         @clock.on_sleep do
@@ -113,6 +119,36 @@ module EiseronAutomation
         sched.run
         assert_equal 1, backup.runs
         assert_match(/Backup failed/, @io.string)
+      end
+
+      def test_sends_telegram_notification_on_backup_failure
+        telegram, delivered = fake_telegram
+        sched = Schedule.new(
+          env: env("TELEGRAM_BOT_TOKEN" => "tok", "TELEGRAM_CHAT_ID" => "123",
+                   "PROD_BACKUP_NAME" => "myapp"),
+          io: StringIO.new,
+          backup: FakeBackup.new(error: RuntimeError.new("pg_dump failed")),
+          clock: @clock, trapper: @trapper, telegram: telegram
+        )
+        stop_after_two_sleeps(sched)
+        sched.run
+        assert_equal 1, delivered.size
+        assert_match(/myapp/, delivered.first)
+        assert_match(/pg_dump failed/, delivered.first)
+      end
+
+      def test_skips_telegram_notification_when_credentials_are_absent
+        sched = Schedule.new(
+          env: env,
+          io: (@io = StringIO.new),
+          backup: FakeBackup.new(error: RuntimeError.new("pg_dump failed")),
+          clock: @clock,
+          trapper: @trapper
+        )
+        stop_after_two_sleeps(sched)
+        sched.run
+        assert_match(/Backup failed/, @io.string)
+        refute_match(/Telegram/, @io.string)
       end
 
       def test_requires_a_cron_expression
