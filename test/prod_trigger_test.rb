@@ -44,10 +44,10 @@ module EiseronAutomation
       assert_empty client.calls
     end
 
-    def test_triggers_with_main_ref_and_token
+    def test_triggers_with_production_ref_and_token
       call = run_trigger(base_env).calls.fetch(0)
       assert_equal "trigger-tok", call[:trigger_token]
-      assert_equal "main", call[:ref]
+      assert_equal "production", call[:ref]
     end
 
     def test_trigger_variables_carry_tag_image_project_action

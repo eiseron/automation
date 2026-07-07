@@ -22,7 +22,7 @@ module EiseronAutomation
         tag = require_env("CI_COMMIT_TAG")
         result = client(project).trigger_pipeline(
           trigger_token: token,
-          ref: "main",
+          ref: "production",
           variables: {
             "PROD_TAG" => tag,
             "PROD_IMAGE" => "#{require_env('CI_REGISTRY_IMAGE')}/prod:#{tag}",
