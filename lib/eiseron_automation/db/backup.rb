@@ -58,10 +58,16 @@ module EiseronAutomation
 
       def prune_remote
         expired = expired_remote_keys
-        expired.each { |key| store.delete(bucket, key) }
-        return if expired.empty?
+        deleted = expired.filter_map do |key|
+          store.delete(bucket, key)
+          key
+        rescue Aws::S3::Errors::ObjectLockedByBucketPolicy
+          @io.puts "Skipped deletion of #{key}: bucket policy prevents deletes"
+          nil
+        end
+        return if deleted.empty?
 
-        store.write_text(bucket, history_key, read_history.without(expired).dump)
+        store.write_text(bucket, history_key, read_history.without(deleted).dump)
       end
 
       def expired_remote_keys

@@ -1,18 +1,28 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "aws-sdk-s3"
+
+module Aws
+  module S3
+    module Errors
+      class ObjectLockedByBucketPolicy < StandardError; end unless const_defined?(:ObjectLockedByBucketPolicy)
+    end
+  end
+end
 
 module EiseronAutomation
   class DbBackupTest < Minitest::Test
     class FakeStore
       attr_reader :uploaded, :deleted, :texts_written
 
-      def initialize(keys = [], history_text: nil)
+      def initialize(keys = [], history_text: nil, locked_keys: [])
         @keys = keys
         @uploaded = []
         @deleted = []
         @history_text = history_text
         @texts_written = []
+        @locked_keys = locked_keys
       end
 
       def list(_bucket, _prefix)
@@ -24,6 +34,8 @@ module EiseronAutomation
       end
 
       def delete(_bucket, key)
+        raise Aws::S3::Errors::ObjectLockedByBucketPolicy, "locked" if @locked_keys.include?(key)
+
         @deleted << key
       end
 
@@ -181,6 +193,15 @@ module EiseronAutomation
       lines = last_write[:text].lines.map(&:strip)
       refute_includes lines, old
       assert_includes lines, recent
+    end
+
+    def test_skips_locked_expired_keys_and_completes_backup
+      old = "afinados/2026-05-01T030000Z.sql.age"
+      store = FakeStore.new([old], history_text: "#{old}\n", locked_keys: [old])
+      io = StringIO.new
+      DB::Backup.new(env: env, io: io, runner: FakeRunner.new, store: store, now: Time.utc(2026, 6, 13, 3, 0, 0)).run
+      refute_includes store.deleted, old
+      assert_match(/bucket policy prevents deletes/, io.string)
     end
   end
 end
