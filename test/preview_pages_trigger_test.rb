@@ -75,6 +75,16 @@ module EiseronAutomation
       refute vars.key?("PREVIEW_PAGES_PROJECT"), "deploy target must be pinned on the deployer"
     end
 
+    def test_targets_deployer_ref_production_by_default
+      client, = run_trigger(base_env)
+      assert_equal "production", client.calls.fetch(0)[:ref]
+    end
+
+    def test_deployer_ref_overrides_via_env
+      client, = run_trigger(base_env.merge("PREVIEW_DEPLOYER_REF" => "release/v1"))
+      assert_equal "release/v1", client.calls.fetch(0)[:ref]
+    end
+
     def test_stop_does_not_package
       _client, runner, uploads = run_trigger(base_env.merge("PREVIEW_TRIGGER_ACTION" => "stop"))
 

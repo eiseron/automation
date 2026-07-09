@@ -37,9 +37,9 @@ module EiseronAutomation
       client
     end
 
-    def test_targets_deployer_ref_main_by_default
+    def test_targets_deployer_ref_production_by_default
       call = run_trigger(base_env).calls.fetch(0)
-      assert_equal "main", call[:ref]
+      assert_equal "production", call[:ref]
       assert_equal "trig-tok", call[:trigger_token]
     end
 

@@ -47,7 +47,7 @@ module EiseronAutomation
     end
 
     def deployer_ref
-      @env.fetch("PREVIEW_DEPLOYER_REF", "main")
+      @env.fetch("PREVIEW_DEPLOYER_REF", "production")
     end
 
     def client

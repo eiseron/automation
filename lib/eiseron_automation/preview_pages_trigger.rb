@@ -29,7 +29,7 @@ module EiseronAutomation
       package if action == "deploy"
       result = client.trigger_pipeline(
         trigger_token: require_env("PREVIEW_DEPLOYER_TRIGGER_TOKEN"),
-        ref: @env.fetch("PREVIEW_DEPLOYER_REF", "main"),
+        ref: @env.fetch("PREVIEW_DEPLOYER_REF", "production"),
         variables: variables
       )
       @io.puts "Downstream pipeline: #{result['web_url']}"
