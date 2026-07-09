@@ -32,11 +32,14 @@ module EiseronAutomation
       "ci check" => :ci_check,
       "ci coverage-gate" => :ci_coverage_gate,
       "observability deploy" => :observability_deploy,
+      "obs search" => :obs_search,
+      "obs streams" => :obs_streams,
+      "obs tail" => :obs_tail,
       "notify ci-failure" => :notify_ci_failure,
       "cf import-otp-idp" => :cf_import_otp_idp
     }.freeze
 
-    ARG_COMMANDS = ["ci update", "ci coverage-gate"].freeze
+    ARG_COMMANDS = ["ci update", "ci coverage-gate", "obs search", "obs tail"].freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
       @argv = argv
@@ -118,6 +121,9 @@ module EiseronAutomation
     def ci_coverage_gate = CI::CoverageGate.new(env: @env, io: @io, err: @err, args: @args).run
 
     def observability_deploy = Observability::Deploy.new(env: @env, io: @io).deploy
+    def obs_search = Observability::Query.new(env: @env, io: @io, args: @args).search
+    def obs_streams = Observability::Query.new(env: @env, io: @io, args: @args).streams
+    def obs_tail = Observability::Query.new(env: @env, io: @io, args: @args).tail
     def notify_ci_failure = Notify::CIFailure.new(env: @env, io: @io, err: @err).run
 
     def cf_import_otp_idp
