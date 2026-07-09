@@ -16,10 +16,17 @@ module EiseronAutomation
         tag = require_env("PROD_TAG")
         guard_downgrade(tag)
         ensure_tenant_password
-        @io.puts "Deploying #{tag} (pre-built image, skip-push)"
-        kamal("deploy", "--version=#{tag}", "--skip-push")
-        @io.puts "Converging accessories from the manifest"
-        kamal("accessory", "reboot", "all", "--version=#{tag}")
+        @io.puts "Deploying #{tag} with a start-first rolling update"
+        docker(
+          "service", "update",
+          "--image", app_image(tag),
+          "--update-order", "start-first",
+          "--with-registry-auth",
+          require_env("APP_SERVICE")
+        )
+        @io.puts "Running migrations and seeds for #{tag}"
+        release_eval(tag, "migrate")
+        release_eval(tag, "seed")
       end
 
       def setup
@@ -52,6 +59,33 @@ module EiseronAutomation
 
       def kamal_env
         @kamal_env ||= @env.to_h.merge("DATABASE_URL" => tenant.database_url)
+      end
+
+      def app_image(tag)
+        "#{require_env('APP_IMAGE')}:#{tag}"
+      end
+
+      def release_eval(tag, task)
+        docker(
+          "run", "--rm",
+          "--network", @env.fetch("SWARM_INTERNAL_NETWORK", "internal"),
+          "-e", "DATABASE_URL",
+          "-e", "SECRET_KEY_BASE",
+          "-e", "PHX_SERVER=false",
+          app_image(tag),
+          "bin/#{require_env('APP_SERVICE')}", "eval", "#{require_env('APP_RELEASE_MODULE')}.Release.#{task}"
+        )
+      end
+
+      def docker(*)
+        @runner.run(docker_env, "docker", *)
+      end
+
+      def docker_env
+        @docker_env ||= @env.to_h.merge(
+          "DOCKER_HOST" => "ssh://#{@env.fetch('DEPLOY_SSH_USER', 'deploy')}@#{require_env('PROD_HOST')}",
+          "DATABASE_URL" => tenant.database_url
+        )
       end
 
       def tenant

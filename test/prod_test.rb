@@ -30,12 +30,16 @@ module EiseronAutomation
     def base_env
       {
         "PROD_TAG" => "v1.4.0",
-        "PROD_PROJECT" => "eiseron/afinados",
+        "PROD_PROJECT" => "acme/app",
         "PROD_DEPLOY_READ_TOKEN" => "tok",
         "CI_API_V4_URL" => "https://gitlab.com/api/v4",
-        "PROD_TENANT_SLUG" => "afinados",
+        "PROD_TENANT_SLUG" => "app",
         "PROD_TENANT_PASSWORD" => "s3cr3t",
-        "PROD_HOST" => "10.0.0.1"
+        "PROD_HOST" => "10.0.0.1",
+        "APP_SERVICE" => "app",
+        "APP_IMAGE" => "registry.example.com/acme/app/prod",
+        "APP_RELEASE_MODULE" => "App",
+        "SECRET_KEY_BASE" => "kb"
       }
     end
 
@@ -60,25 +64,38 @@ module EiseronAutomation
       assert_match(/not a release tag/, error.message)
     end
 
-    def test_deploy_runs_kamal_then_converges_accessories
+    def test_deploy_updates_the_service_start_first_then_migrates_and_seeds
       runner = FakeRunner.new
       client = FakeClient.new(%w[v1.3.0 v1.4.0])
       Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
 
+      image = "registry.example.com/acme/app/prod:v1.4.0"
       commands = runner.runs.map { |run| run[:cmd] }
       assert_equal [
-        ["kamal", "deploy", "--version=v1.4.0", "--skip-push"],
-        ["kamal", "accessory", "reboot", "all", "--version=v1.4.0"]
+        ["docker", "service", "update", "--image", image, "--update-order", "start-first", "--with-registry-auth",
+         "app"],
+        ["docker", "run", "--rm", "--network", "internal", "-e", "DATABASE_URL", "-e", "SECRET_KEY_BASE", "-e",
+         "PHX_SERVER=false", image, "bin/app", "eval", "App.Release.migrate"],
+        ["docker", "run", "--rm", "--network", "internal", "-e", "DATABASE_URL", "-e", "SECRET_KEY_BASE", "-e",
+         "PHX_SERVER=false", image, "bin/app", "eval", "App.Release.seed"]
       ], commands
     end
 
-    def test_deploy_converges_accessories_with_the_same_database_url
+    def test_deploy_targets_the_prod_host_over_ssh
       runner = FakeRunner.new
       client = FakeClient.new(%w[v1.3.0 v1.4.0])
       Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
 
-      reboot = runner.runs.fetch(1)
-      assert_equal "ecto://afinados:s3cr3t@platform-db/afinados_prod", reboot[:env].fetch("DATABASE_URL")
+      assert_equal "ssh://deploy@10.0.0.1", runner.runs.fetch(0)[:env].fetch("DOCKER_HOST")
+    end
+
+    def test_deploy_runs_migrations_with_the_assembled_database_url
+      runner = FakeRunner.new
+      client = FakeClient.new(%w[v1.3.0 v1.4.0])
+      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
+
+      migrate = runner.runs.fetch(1)
+      assert_equal "ecto://app:s3cr3t@platform-db/app_prod", migrate[:env].fetch("DATABASE_URL")
     end
 
     def test_deploy_ensures_the_db_password_only_once
@@ -94,8 +111,8 @@ module EiseronAutomation
       client = FakeClient.new(%w[v1.3.0 v1.4.0])
       Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
 
-      assert_match(/ALTER ROLE %I PASSWORD %L', 'afinados', 's3cr3t'/, runner.stdins.fetch(0)[:sql])
-      assert_equal "ecto://afinados:s3cr3t@platform-db/afinados_prod", runner.runs.fetch(0)[:env].fetch("DATABASE_URL")
+      assert_match(/ALTER ROLE %I PASSWORD %L', 'app', 's3cr3t'/, runner.stdins.fetch(0)[:sql])
+      assert_equal "ecto://app:s3cr3t@platform-db/app_prod", runner.runs.fetch(0)[:env].fetch("DATABASE_URL")
     end
 
     def test_deploy_never_exports_database_url_to_the_ci_environment
@@ -118,11 +135,10 @@ module EiseronAutomation
       env = base_env.merge("PROD_TAG" => "v1.3.0", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "web")
       Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new(%w[v1.3.0 v1.4.0])).deploy
 
-      commands = runner.runs.map { |run| run[:cmd] }
-      assert_equal [
-        ["kamal", "deploy", "--version=v1.3.0", "--skip-push"],
-        ["kamal", "accessory", "reboot", "all", "--version=v1.3.0"]
-      ], commands
+      image = "registry.example.com/acme/app/prod:v1.3.0"
+      first = runner.runs.fetch(0)[:cmd]
+      assert_equal ["docker", "service", "update", "--image", image, "--update-order", "start-first",
+                    "--with-registry-auth", "app"], first
     end
 
     def test_deploy_raises_when_prod_tag_is_missing
@@ -150,7 +166,7 @@ module EiseronAutomation
       runner = FakeRunner.new
       Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
 
-      assert_equal "ecto://afinados:s3cr3t@platform-db/afinados_prod", runner.runs.fetch(0)[:env].fetch("DATABASE_URL")
+      assert_equal "ecto://app:s3cr3t@platform-db/app_prod", runner.runs.fetch(0)[:env].fetch("DATABASE_URL")
     end
 
     def test_backup_does_not_rotate_the_tenant_password
@@ -176,7 +192,7 @@ module EiseronAutomation
       runner = FakeRunner.new
       Prod::Deploy.new(env: web_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).setup
 
-      assert_match(/ALTER ROLE %I PASSWORD %L', 'afinados'/, runner.stdins.fetch(0)[:sql])
+      assert_match(/ALTER ROLE %I PASSWORD %L', 'app'/, runner.stdins.fetch(0)[:sql])
       assert runner.runs.fetch(0)[:env].key?("DATABASE_URL")
     end
 
