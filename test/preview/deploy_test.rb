@@ -43,14 +43,14 @@ module EiseronAutomation
 
       def base_env
         {
-          "EISERON_PREVIEW_APP_NAME" => "afinados",
+          "EISERON_PREVIEW_APP_NAME" => "app",
           "EISERON_PREVIEW_COMPOSE_TEMPLATE" => "/tmp/__deploy_test_compose__.yml",
           "PREVIEW_REF" => "feat-foo",
           "PREVIEW_SHA" => "abc123",
           "PREVIEW_MR_IID" => "9",
           "PREVIEW_KIND" => "mr",
-          "PREVIEW_IMAGE_REPO" => "registry.gitlab.com/eiseron/afinados/afinados-ops/preview",
-          "PREVIEW_DOMAIN_BASE" => "preview.afinados.io",
+          "PREVIEW_IMAGE_REPO" => "registry.gitlab.com/acme/app/app-ops/preview",
+          "PREVIEW_DOMAIN_BASE" => "preview.app.io",
           "PREVIEW_IMAGE_PULL_USER" => "puller",
           "PREVIEW_IMAGE_PULL_TOKEN" => "tok",
           "PREVIEW_SECRET_KEY_BASE" => "kbase",
@@ -82,7 +82,7 @@ module EiseronAutomation
 
       def test_full_sequence_on_mr_kind_uses_mr_prefixed_project
         ssh = FakeSsh.new
-        with_compose_template("services:\n  afinados: {image: x}\n") do
+        with_compose_template("services:\n  app: {image: x}\n") do
           deploy(ssh: ssh)
         end
         compose_script = ssh.scripts.find { |s| s.include?("up -d") }
@@ -105,11 +105,11 @@ module EiseronAutomation
         with_compose_template("x:\n") { deploy(ssh: ssh) }
         roles_script = ssh.scripts.find { |s| s.include?("CREATE ROLE") && s.include?("CREATE DATABASE") }
         refute_nil roles_script
-        assert_includes roles_script, 'CREATE ROLE "afinados_feat-foo_app"'
-        assert_includes roles_script, 'CREATE ROLE "afinados_feat-foo_admin"'
-        assert_includes roles_script, 'CREATE DATABASE "afinados_feat-foo"'
-        assert_includes roles_script, "GRANT afinados_app   TO"
-        assert_includes roles_script, "GRANT afinados_admin TO"
+        assert_includes roles_script, 'CREATE ROLE "app_feat-foo_app"'
+        assert_includes roles_script, 'CREATE ROLE "app_feat-foo_admin"'
+        assert_includes roles_script, 'CREATE DATABASE "app_feat-foo"'
+        assert_includes roles_script, "GRANT app_app   TO"
+        assert_includes roles_script, "GRANT app_admin TO"
       end
 
       def test_shared_roles_sql_idempotent
@@ -118,8 +118,8 @@ module EiseronAutomation
         shared_script = ssh.scripts.find { |s| s.include?("NOLOGIN BYPASSRLS") }
         refute_nil shared_script
         assert_includes shared_script, "IF NOT EXISTS"
-        assert_includes shared_script, "CREATE ROLE afinados_admin NOLOGIN BYPASSRLS"
-        assert_includes shared_script, "CREATE ROLE afinados_app NOLOGIN"
+        assert_includes shared_script, "CREATE ROLE app_admin NOLOGIN BYPASSRLS"
+        assert_includes shared_script, "CREATE ROLE app_app NOLOGIN"
       end
 
       def test_per_mr_grants_app_role_table_privileges_in_target_db
@@ -127,13 +127,13 @@ module EiseronAutomation
         with_compose_template("x:\n") { deploy(ssh: ssh) }
         roles_script = ssh.scripts.find { |s| s.include?("CREATE ROLE") && s.include?("CREATE DATABASE") }
         refute_nil roles_script
-        assert_includes roles_script, 'psql -U postgres -d "afinados_feat-foo"'
-        assert_includes roles_script, 'GRANT USAGE ON SCHEMA public TO "afinados_feat-foo_app"'
+        assert_includes roles_script, 'psql -U postgres -d "app_feat-foo"'
+        assert_includes roles_script, 'GRANT USAGE ON SCHEMA public TO "app_feat-foo_app"'
         assert_includes roles_script,
-                        'ALTER DEFAULT PRIVILEGES FOR ROLE "afinados_feat-foo_admin" IN SCHEMA public'
+                        'ALTER DEFAULT PRIVILEGES FOR ROLE "app_feat-foo_admin" IN SCHEMA public'
         assert_includes roles_script,
-                        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "afinados_feat-foo_app"'
-        assert_includes roles_script, 'GRANT USAGE, SELECT ON SEQUENCES TO "afinados_feat-foo_app"'
+                        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "app_feat-foo_app"'
+        assert_includes roles_script, 'GRANT USAGE, SELECT ON SEQUENCES TO "app_feat-foo_app"'
       end
 
       def test_migrate_runs_with_admin_role_and_mix_env_preview
@@ -141,19 +141,19 @@ module EiseronAutomation
         with_compose_template("x:\n") { deploy(ssh: ssh) }
         migrate_script = ssh.scripts.find { |s| s.include?("mix ecto.migrate") }
         refute_nil migrate_script
-        assert_includes migrate_script, "DB_USER='afinados_feat-foo_admin'"
+        assert_includes migrate_script, "DB_USER='app_feat-foo_admin'"
         assert_includes migrate_script, "MIX_ENV=preview"
       end
 
       def test_compose_yml_is_embedded_into_bash_heredoc
         ssh = FakeSsh.new
-        with_compose_template("services:\n  afinados:\n    image: foo\n") do
+        with_compose_template("services:\n  app:\n    image: foo\n") do
           deploy(ssh: ssh)
         end
         up_script = ssh.scripts.find { |s| s.include?("up -d") }
-        assert_includes up_script, "services:\n  afinados:\n    image: foo"
+        assert_includes up_script, "services:\n  app:\n    image: foo"
         assert_includes up_script, "export PREVIEW_REF='feat-foo'"
-        assert_includes up_script, "export MR_PG_APP_USER='afinados_feat-foo_app'"
+        assert_includes up_script, "export MR_PG_APP_USER='app_feat-foo_app'"
       end
 
       def test_releases_registry_tag_when_image_present
@@ -178,7 +178,7 @@ module EiseronAutomation
           err = assert_raises(Error) { deploy(ssh: ssh, runner: runner) }
         end
         assert_match(/healthcheck timed out/, err.message)
-        assert_match(%r{https://feat-foo-preview\.afinados\.io/healthz}, err.message)
+        assert_match(%r{https://feat-foo-preview\.app\.io/healthz}, err.message)
       end
 
       def test_healthcheck_timeout_dumps_host_diagnostics_before_raising
@@ -189,8 +189,8 @@ module EiseronAutomation
         end
         probes = ssh.runs.join("\n")
         assert_includes probes, "docker compose -p mr-feat-foo ps -a"
-        assert_includes probes, "docker inspect mr-feat-foo-afinados-1 --format '{{json .Config.Labels}}'"
-        assert_includes probes, "-H 'Host: feat-foo-preview.afinados.io' http://localhost/healthz"
+        assert_includes probes, "docker inspect mr-feat-foo-app-1 --format '{{json .Config.Labels}}'"
+        assert_includes probes, "-H 'Host: feat-foo-preview.app.io' http://localhost/healthz"
       end
 
       def test_rejects_kind_outside_mr_main

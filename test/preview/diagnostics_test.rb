@@ -19,8 +19,8 @@ module EiseronAutomation
         end
       end
 
-      def build(ssh, io: StringIO.new, project: "main", container: "main-afinados-1",
-                host: "main-preview.afinados.io", health_path: "/up", port: 4000)
+      def build(ssh, io: StringIO.new, project: "main", container: "main-app-1",
+                host: "main-preview.app.io", health_path: "/up", port: 4000)
         Diagnostics.new(
           io: io, ssh: ssh, project: project, container: container,
           host: host, health_path: health_path, port: port
@@ -32,13 +32,13 @@ module EiseronAutomation
         build(ssh).dump
         joined = ssh.commands.join("\n")
         assert_includes joined, "docker compose -p main ps -a"
-        assert_includes joined, "docker inspect main-afinados-1 --format '{{json .State}}'"
-        assert_includes joined, "docker logs --tail 80 main-afinados-1"
+        assert_includes joined, "docker inspect main-app-1 --format '{{json .State}}'"
+        assert_includes joined, "docker logs --tail 80 main-app-1"
         assert_includes joined, "sed -E 's#(://[^:@ ]+:)[^@ ]+@#\\1***@#g'"
-        assert_includes joined, "docker inspect main-afinados-1 --format '{{json .Config.Labels}}'"
-        assert_includes joined, "docker inspect main-afinados-1 --format '{{json .NetworkSettings.Networks}}'"
-        assert_includes joined, "docker exec main-afinados-1 wget -qO- --timeout=5 http://localhost:4000/up"
-        assert_includes joined, "-H 'Host: main-preview.afinados.io' http://localhost/up"
+        assert_includes joined, "docker inspect main-app-1 --format '{{json .Config.Labels}}'"
+        assert_includes joined, "docker inspect main-app-1 --format '{{json .NetworkSettings.Networks}}'"
+        assert_includes joined, "docker exec main-app-1 wget -qO- --timeout=5 http://localhost:4000/up"
+        assert_includes joined, "-H 'Host: main-preview.app.io' http://localhost/up"
         assert_includes joined, "docker logs traefik"
         assert_includes joined, "/api/http/routers"
       end
@@ -56,7 +56,7 @@ module EiseronAutomation
         ssh = FakeSsh.new
         build(ssh).dump
         routers = ssh.commands.find { |c| c.include?("/api/http/routers") }
-        assert_includes routers, "grep -F main-preview.afinados.io"
+        assert_includes routers, "grep -F main-preview.app.io"
       end
 
       def test_every_probe_is_suffixed_with_failure_tolerance

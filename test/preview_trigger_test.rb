@@ -23,9 +23,9 @@ module EiseronAutomation
         "PREVIEW_TRIGGER_KIND" => "mr",
         "PREVIEW_TRIGGER_REF" => "feat-foo",
         "PREVIEW_TRIGGER_MR_IID" => "12",
-        "PREVIEW_DEPLOYER_PROJECT" => "eiseron/afinados/afinados-ops",
+        "PREVIEW_DEPLOYER_PROJECT" => "acme/app/app-ops",
         "PREVIEW_DEPLOYER_TRIGGER_TOKEN" => "trig-tok",
-        "CI_REGISTRY_IMAGE" => "registry.gitlab.com/eiseron/afinados/afinados",
+        "CI_REGISTRY_IMAGE" => "registry.gitlab.com/acme/app/app",
         "CI_COMMIT_SHA" => "abcdef123",
         "CI_API_V4_URL" => "https://gitlab.com/api/v4"
       }
@@ -55,7 +55,7 @@ module EiseronAutomation
       assert_equal "feat-foo", vars["PREVIEW_REF"]
       assert_equal "abcdef123", vars["PREVIEW_SHA"]
       assert_equal "12", vars["PREVIEW_MR_IID"]
-      assert_equal "registry.gitlab.com/eiseron/afinados/afinados/preview", vars["PREVIEW_IMAGE_REPO"]
+      assert_equal "registry.gitlab.com/acme/app/app/preview", vars["PREVIEW_IMAGE_REPO"]
     end
 
     def test_main_deploy_omits_mr_iid_when_unset

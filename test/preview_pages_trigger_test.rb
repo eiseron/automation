@@ -35,7 +35,7 @@ module EiseronAutomation
         "CI_MERGE_REQUEST_IID" => "12",
         "CI_COMMIT_SHA" => "abc123def",
         "PREVIEW_DIST_DIR" => ".vitepress/dist",
-        "PREVIEW_DEPLOYER_PROJECT" => "eiseron/afinados/afinados-ops",
+        "PREVIEW_DEPLOYER_PROJECT" => "acme/app/app-ops",
         "PREVIEW_DEPLOYER_TRIGGER_TOKEN" => "trig-tok",
         "CI_JOB_TOKEN" => "job-tok",
         "CI_PROJECT_ID" => "555",

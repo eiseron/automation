@@ -19,11 +19,11 @@ module EiseronAutomation
 
     def base_env
       {
-        "PROD_DEPLOYER_PROJECT" => "eiseron/afinados/afinados-ops",
+        "PROD_DEPLOYER_PROJECT" => "acme/app/app-ops",
         "PROD_DEPLOYER_TRIGGER_TOKEN" => "trigger-tok",
         "CI_COMMIT_TAG" => "v1.2.3",
-        "CI_REGISTRY_IMAGE" => "registry.gitlab.com/eiseron/afinados/afinados",
-        "CI_PROJECT_PATH" => "eiseron/afinados/afinados",
+        "CI_REGISTRY_IMAGE" => "registry.gitlab.com/acme/app/app",
+        "CI_PROJECT_PATH" => "acme/app/app",
         "CI_API_V4_URL" => "https://gitlab.com/api/v4"
       }
     end
@@ -53,8 +53,8 @@ module EiseronAutomation
     def test_trigger_variables_carry_tag_image_project_action
       vars = run_trigger(base_env).calls.fetch(0).fetch(:variables)
       assert_equal "v1.2.3", vars["PROD_TAG"]
-      assert_equal "registry.gitlab.com/eiseron/afinados/afinados/prod:v1.2.3", vars["PROD_IMAGE"]
-      assert_equal "eiseron/afinados/afinados", vars["PROD_PROJECT"]
+      assert_equal "registry.gitlab.com/acme/app/app/prod:v1.2.3", vars["PROD_IMAGE"]
+      assert_equal "acme/app/app", vars["PROD_PROJECT"]
       assert_equal "deploy", vars["PROD_ACTION"]
     end
   end

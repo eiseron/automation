@@ -39,8 +39,8 @@ module EiseronAutomation
           "PREVIEW_KIND" => "pages",
           "PREVIEW_MR_IID" => "12",
           "PREVIEW_SHA" => "abc123def",
-          "PREVIEW_SITE_PROJECT" => "eiseron/afinados/afinados-site",
-          "PREVIEW_PAGES_PROJECT" => "afinados-site",
+          "PREVIEW_SITE_PROJECT" => "acme/app/app-site",
+          "PREVIEW_PAGES_PROJECT" => "app-site",
           "CLOUDFLARE_API_TOKEN" => "cf-tok",
           "CLOUDFLARE_ACCOUNT_ID" => "acct-1",
           "CI_JOB_TOKEN" => "job-tok",
@@ -87,7 +87,7 @@ module EiseronAutomation
 
         url, _path, token = downloads.fetch(0)
         assert_equal "job-tok", token
-        assert_includes url, "/projects/eiseron%2Fafinados%2Fafinados-site/packages/generic/site-preview/"
+        assert_includes url, "/projects/acme%2Fapp%2Fapp-site/packages/generic/site-preview/"
         assert_includes url, "/abc123def/preview-dist.tgz"
       end
 
@@ -110,7 +110,7 @@ module EiseronAutomation
 
       def test_deploy_pins_project_and_branch_from_trusted_sources
         env, cmd = run_deploy.calls.find { |_e, c| c.include?("deploy") && c.first == "npx" }
-        assert_includes cmd, "--project-name=afinados-site"
+        assert_includes cmd, "--project-name=app-site"
         assert_includes cmd, "--branch=mr12"
         assert_equal "cf-tok", env["CLOUDFLARE_API_TOKEN"]
       end

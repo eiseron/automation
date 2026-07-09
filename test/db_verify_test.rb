@@ -27,8 +27,8 @@ module EiseronAutomation
 
     def env(over = {})
       {
-        "PROD_BACKUP_BUCKET" => "afinados-backups",
-        "PROD_BACKUP_NAME" => "afinados",
+        "PROD_BACKUP_BUCKET" => "app-backups",
+        "PROD_BACKUP_NAME" => "app",
         "CLOUDFLARE_ACCOUNT_ID" => "acct"
       }.merge(over)
     end
@@ -38,7 +38,7 @@ module EiseronAutomation
     end
 
     def history(*stamps)
-      "#{stamps.map { |s| "afinados/#{s}Z.sql.age\tsha-#{s}" }.join("\n")}\n"
+      "#{stamps.map { |s| "app/#{s}Z.sql.age\tsha-#{s}" }.join("\n")}\n"
     end
 
     def verify(store, vars = env, at: now)
@@ -73,7 +73,7 @@ module EiseronAutomation
     end
 
     def test_ignores_non_backup_entries_in_history
-      text = "afinados/9999-zzz-not-a-backup.txt\nafinados/2026-06-15T040000Z.sql.age\tsha-latest\n"
+      text = "app/9999-zzz-not-a-backup.txt\napp/2026-06-15T040000Z.sql.age\tsha-latest\n"
       store = FakeStore.new(text)
       verify(store).run
     end
@@ -85,13 +85,13 @@ module EiseronAutomation
     end
 
     def test_accepts_history_lines_that_carry_a_sha256
-      store = FakeStore.new("afinados/2026-06-15T040000Z.sql.age\tabc123\n")
+      store = FakeStore.new("app/2026-06-15T040000Z.sql.age\tabc123\n")
       verify(store).run
-      assert_equal ["afinados/2026-06-15T040000Z.sql.age"], store.head_checks
+      assert_equal ["app/2026-06-15T040000Z.sql.age"], store.head_checks
     end
 
     def test_raises_when_the_newest_object_has_an_unparseable_name
-      text = "afinados/zzz-mangled.sql.age\n"
+      text = "app/zzz-mangled.sql.age\n"
       error = assert_raises(Error) { verify(FakeStore.new(text)).run }
       assert_match(/does not match the expected/, error.message)
     end
@@ -103,7 +103,7 @@ module EiseronAutomation
     end
 
     def test_warns_about_missing_backups
-      keys = ["afinados/2026-06-15T040000Z.sql.age"]
+      keys = ["app/2026-06-15T040000Z.sql.age"]
       store = FakeStore.new(
         history("2026-06-15T040000", "2026-06-14T040000"),
         existing_keys: keys
@@ -122,43 +122,43 @@ module EiseronAutomation
     end
 
     def test_warns_when_an_older_backup_has_no_integrity_hash
-      text = "afinados/2026-06-14T040000Z.sql.age\n" \
-             "afinados/2026-06-15T040000Z.sql.age\tsha-latest\n"
+      text = "app/2026-06-14T040000Z.sql.age\n" \
+             "app/2026-06-15T040000Z.sql.age\tsha-latest\n"
       verify(FakeStore.new(text)).run
       assert_match(/WARNING: backup without integrity hash.*2026-06-14/, @io.string)
     end
 
     def test_raises_when_the_latest_backup_has_no_integrity_hash
-      text = "afinados/2026-06-14T040000Z.sql.age\tsha-old\n" \
-             "afinados/2026-06-15T040000Z.sql.age\n"
+      text = "app/2026-06-14T040000Z.sql.age\tsha-old\n" \
+             "app/2026-06-15T040000Z.sql.age\n"
       error = assert_raises(Error) { verify(FakeStore.new(text)).run }
       assert_match(/latest backup has no integrity hash/, error.message)
     end
 
     def test_skips_lock_coverage_when_no_lock_prefix_is_configured
-      store = FakeStore.new("afinados/db/2026-06-15T040000Z.sql.age\tsha-x\n")
+      store = FakeStore.new("app/db/2026-06-15T040000Z.sql.age\tsha-x\n")
       verify(store).run
       assert_match(/Lock coverage check skipped: PROD_BACKUP_LOCK_PREFIX not set/, @io.string)
     end
 
     def test_passes_and_reports_when_the_latest_backup_is_under_the_lock_prefix
       store = FakeStore.new(history("2026-06-15T040000"))
-      verify(store, env("PROD_BACKUP_LOCK_PREFIX" => "afinados/2")).run
-      assert_match(%r{Lock coverage OK: latest backup under afinados/2}, @io.string)
+      verify(store, env("PROD_BACKUP_LOCK_PREFIX" => "app/2")).run
+      assert_match(%r{Lock coverage OK: latest backup under app/2}, @io.string)
     end
 
     def test_raises_when_the_latest_backup_is_outside_the_lock_prefix
-      store = FakeStore.new("afinados/db/2026-06-15T040000Z.sql.age\tsha-latest\n")
+      store = FakeStore.new("app/db/2026-06-15T040000Z.sql.age\tsha-latest\n")
       error = assert_raises(Error) do
-        verify(store, env("PROD_BACKUP_LOCK_PREFIX" => "afinados/2")).run
+        verify(store, env("PROD_BACKUP_LOCK_PREFIX" => "app/2")).run
       end
       assert_match(/not under the immutable lock prefix/, error.message)
     end
 
     def test_warns_about_older_backups_outside_the_lock_prefix
-      text = "afinados/1999-01-01T000000Z.sql.age\tsha-old\n" \
-             "afinados/2026-06-15T040000Z.sql.age\tsha-latest\n"
-      verify(FakeStore.new(text), env("PROD_BACKUP_LOCK_PREFIX" => "afinados/2")).run
+      text = "app/1999-01-01T000000Z.sql.age\tsha-old\n" \
+             "app/2026-06-15T040000Z.sql.age\tsha-latest\n"
+      verify(FakeStore.new(text), env("PROD_BACKUP_LOCK_PREFIX" => "app/2")).run
       assert_match(/WARNING: backup outside the immutable lock prefix.*1999/, @io.string)
     end
 

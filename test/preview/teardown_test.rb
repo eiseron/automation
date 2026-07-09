@@ -29,7 +29,7 @@ module EiseronAutomation
 
       def base_env(extra = {})
         {
-          "EISERON_PREVIEW_APP_NAME" => "afinados",
+          "EISERON_PREVIEW_APP_NAME" => "app",
           "SHARED_PG_USER" => "postgres"
         }.merge(extra)
       end
@@ -47,9 +47,9 @@ module EiseronAutomation
         assert_includes ssh.commands.first, "--rmi all"
 
         script = ssh.scripts.fetch(0)
-        assert_includes script, 'DROP DATABASE IF EXISTS "afinados_feat-foo" WITH (FORCE);'
-        assert_includes script, 'DROP ROLE IF EXISTS "afinados_feat-foo_app";'
-        assert_includes script, 'DROP ROLE IF EXISTS "afinados_feat-foo_admin";'
+        assert_includes script, 'DROP DATABASE IF EXISTS "app_feat-foo" WITH (FORCE);'
+        assert_includes script, 'DROP ROLE IF EXISTS "app_feat-foo_app";'
+        assert_includes script, 'DROP ROLE IF EXISTS "app_feat-foo_admin";'
 
         assert_equal ["feat-foo"], registry.deleted
       end

@@ -53,13 +53,13 @@ module EiseronAutomation
 
     def env(over = {})
       {
-        "PROD_BACKUP_BUCKET" => "afinados-backups",
-        "PROD_BACKUP_NAME" => "afinados",
+        "PROD_BACKUP_BUCKET" => "app-backups",
+        "PROD_BACKUP_NAME" => "app",
         "CLOUDFLARE_ACCOUNT_ID" => "acct",
         "PGHOST" => "platform-db",
-        "PGUSER" => "afinados",
+        "PGUSER" => "app",
         "PROD_RESTORE_KEY" => "latest",
-        "PROD_RESTORE_CONFIRM" => "afinados_prod"
+        "PROD_RESTORE_CONFIRM" => "app_prod"
       }.merge(over)
     end
 
@@ -90,7 +90,7 @@ module EiseronAutomation
 
     def test_refuses_when_confirmation_does_not_match_the_database
       error = assert_raises(Error) { perform(FakeStore.new(keys), env("PROD_RESTORE_CONFIRM" => "wrong")) }
-      assert_match(/PROD_RESTORE_CONFIRM=afinados_prod/, error.message)
+      assert_match(/PROD_RESTORE_CONFIRM=app_prod/, error.message)
       assert_empty @runner.calls
       refute @backup.ran
     end
@@ -125,19 +125,19 @@ module EiseronAutomation
     def test_latest_resolves_to_the_lexicographically_highest_object
       store = FakeStore.new(keys)
       perform(store, env)
-      assert_equal "afinados/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
+      assert_equal "app/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
     end
 
     def test_an_explicit_key_is_restored_verbatim
       store = FakeStore.new(keys)
-      perform(store, env("PROD_RESTORE_KEY" => "afinados/2026-06-11T0200Z.sql.age"))
-      assert_equal "afinados/2026-06-11T0200Z.sql.age", store.downloaded.fetch(0)
+      perform(store, env("PROD_RESTORE_KEY" => "app/2026-06-11T0200Z.sql.age"))
+      assert_equal "app/2026-06-11T0200Z.sql.age", store.downloaded.fetch(0)
     end
 
     def test_rejects_a_key_outside_the_product_prefix
-      bad = env("PROD_RESTORE_KEY" => "holter/2026-06-13T0200Z.sql.age")
+      bad = env("PROD_RESTORE_KEY" => "beta/2026-06-13T0200Z.sql.age")
       error = assert_raises(Error) { perform(FakeStore.new(keys), bad) }
-      assert_match(%r{not a afinados/ backup object}, error.message)
+      assert_match(%r{not a app/ backup object}, error.message)
     end
 
     def test_requires_an_identity_on_stdin

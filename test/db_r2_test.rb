@@ -73,49 +73,49 @@ module EiseronAutomation
 
     def test_read_text_diagnostic_names_the_get_object_operation_and_location
       error = assert_raises(Error) do
-        r2(error: access_denied).read_text("afinados-backups", "afinados/history")
+        r2(error: access_denied).read_text("app-backups", "app/history")
       end
-      assert_match(%r{R2 GetObject s3://afinados-backups/afinados/history failed: AccessDenied}, error.message)
+      assert_match(%r{R2 GetObject s3://app-backups/app/history failed: AccessDenied}, error.message)
     end
 
     def test_list_diagnostic_names_the_list_objects_operation
-      error = assert_raises(Error) { r2(error: access_denied).list("afinados-backups", "afinados") }
-      assert_match(%r{R2 ListObjectsV2 s3://afinados-backups/afinados/}, error.message)
+      error = assert_raises(Error) { r2(error: access_denied).list("app-backups", "app") }
+      assert_match(%r{R2 ListObjectsV2 s3://app-backups/app/}, error.message)
     end
 
     def test_exists_diagnostic_names_the_head_object_operation
-      error = assert_raises(Error) { r2(error: access_denied).exists?("afinados-backups", "afinados/history") }
-      assert_match(%r{R2 HeadObject s3://afinados-backups/afinados/history}, error.message)
+      error = assert_raises(Error) { r2(error: access_denied).exists?("app-backups", "app/history") }
+      assert_match(%r{R2 HeadObject s3://app-backups/app/history}, error.message)
     end
 
     def test_download_diagnostic_names_the_get_object_operation
       Dir.mktmpdir do |dir|
         error = assert_raises(Error) do
-          r2(error: access_denied).download("afinados-backups", "afinados/x.sql.age", File.join(dir, "out"))
+          r2(error: access_denied).download("app-backups", "app/x.sql.age", File.join(dir, "out"))
         end
-        assert_match(%r{R2 GetObject s3://afinados-backups/afinados/x.sql.age}, error.message)
+        assert_match(%r{R2 GetObject s3://app-backups/app/x.sql.age}, error.message)
       end
     end
 
     def test_upload_diagnostic_names_the_put_object_operation
       Tempfile.create("backup") do |file|
         error = assert_raises(Error) do
-          r2(error: access_denied).upload("afinados-backups", "afinados/x.sql.age", file.path)
+          r2(error: access_denied).upload("app-backups", "app/x.sql.age", file.path)
         end
-        assert_match(%r{R2 PutObject s3://afinados-backups/afinados/x.sql.age}, error.message)
+        assert_match(%r{R2 PutObject s3://app-backups/app/x.sql.age}, error.message)
       end
     end
 
     def test_write_text_diagnostic_names_the_put_object_operation
       error = assert_raises(Error) do
-        r2(error: access_denied).write_text("afinados-backups", "afinados/history", "data")
+        r2(error: access_denied).write_text("app-backups", "app/history", "data")
       end
-      assert_match(%r{R2 PutObject s3://afinados-backups/afinados/history}, error.message)
+      assert_match(%r{R2 PutObject s3://app-backups/app/history}, error.message)
     end
 
     def test_delete_diagnostic_names_the_delete_object_operation
-      error = assert_raises(Error) { r2(error: access_denied).delete("afinados-backups", "afinados/old.sql.age") }
-      assert_match(%r{R2 DeleteObject s3://afinados-backups/afinados/old.sql.age}, error.message)
+      error = assert_raises(Error) { r2(error: access_denied).delete("app-backups", "app/old.sql.age") }
+      assert_match(%r{R2 DeleteObject s3://app-backups/app/old.sql.age}, error.message)
     end
 
     def test_diagnostic_reports_both_credentials_present

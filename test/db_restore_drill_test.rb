@@ -41,8 +41,8 @@ module EiseronAutomation
 
     def env(over = {})
       {
-        "PROD_BACKUP_BUCKET" => "afinados-backups",
-        "PROD_BACKUP_NAME" => "afinados",
+        "PROD_BACKUP_BUCKET" => "app-backups",
+        "PROD_BACKUP_NAME" => "app",
         "PROD_BACKUP_DRILL_KEY" => "AGE-SECRET-KEY-1DRILL",
         "CLOUDFLARE_ACCOUNT_ID" => "acct"
       }.merge(over)
@@ -50,7 +50,7 @@ module EiseronAutomation
 
     def history(*keys)
       sha = Digest::SHA256.hexdigest("ciphertext")
-      "#{keys.map { |k| "afinados/#{k}\t#{sha}" }.join("\n")}\n"
+      "#{keys.map { |k| "app/#{k}\t#{sha}" }.join("\n")}\n"
     end
 
     def drill(store, vars)
@@ -60,15 +60,15 @@ module EiseronAutomation
     def test_picks_the_lexicographically_latest_backup_object
       store = FakeStore.new(history("2026-06-10T0200Z.sql.age", "2026-06-13T0200Z.sql.age", "2026-06-11T0200Z.sql.age"))
       drill(store, env).run
-      assert_equal "afinados/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
+      assert_equal "app/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
     end
 
     def test_ignores_non_backup_entries_in_history
-      text = "afinados/2026-06-13T0200Z.sql.age\t#{Digest::SHA256.hexdigest('ciphertext')}\n" \
-             "afinados/9999-zzz-not-a-backup.txt\n"
+      text = "app/2026-06-13T0200Z.sql.age\t#{Digest::SHA256.hexdigest('ciphertext')}\n" \
+             "app/9999-zzz-not-a-backup.txt\n"
       store = FakeStore.new(text)
       drill(store, env).run
-      assert_equal "afinados/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
+      assert_equal "app/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
     end
 
     def test_decrypts_with_the_drill_identity_before_restoring
@@ -81,8 +81,8 @@ module EiseronAutomation
     def test_precreates_the_owner_role_so_a_plain_dump_restores_cleanly
       drill(FakeStore.new(history("2026-06-13T0200Z.sql.age")), env).run
       prepare = @runner.calls.find { |call| call[:sql]&.include?("CREATE ROLE") }
-      assert_match(/rolname = 'afinados'/, prepare[:sql])
-      assert_match(/CREATE ROLE "afinados"/, prepare[:sql])
+      assert_match(/rolname = 'app'/, prepare[:sql])
+      assert_match(/CREATE ROLE "app"/, prepare[:sql])
     end
 
     def test_restores_the_dump_and_then_verifies_with_on_error_stop
@@ -103,25 +103,25 @@ module EiseronAutomation
 
     def test_passes_integrity_when_recorded_hash_matches_the_download
       sha256 = Digest::SHA256.hexdigest("ciphertext")
-      store = FakeStore.new("afinados/2026-06-13T0200Z.sql.age\t#{sha256}\n")
+      store = FakeStore.new("app/2026-06-13T0200Z.sql.age\t#{sha256}\n")
       drill(store, env).run
-      assert_equal "afinados/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
+      assert_equal "app/2026-06-13T0200Z.sql.age", store.downloaded.fetch(0)
     end
 
     def test_fails_integrity_when_recorded_hash_mismatches_the_download
-      store = FakeStore.new("afinados/2026-06-13T0200Z.sql.age\tdeadbeef\n")
+      store = FakeStore.new("app/2026-06-13T0200Z.sql.age\tdeadbeef\n")
       error = assert_raises(Error) { drill(store, env).run }
       assert_match(/integrity check failed/, error.message)
     end
 
     def test_does_not_decrypt_when_the_integrity_check_fails
-      store = FakeStore.new("afinados/2026-06-13T0200Z.sql.age\tdeadbeef\n")
+      store = FakeStore.new("app/2026-06-13T0200Z.sql.age\tdeadbeef\n")
       assert_raises(Error) { drill(store, env).run }
       refute(@runner.calls.any? { |call| call[:cmd].first == "age" })
     end
 
     def test_raises_when_the_drilled_backup_has_no_integrity_hash
-      store = FakeStore.new("afinados/2026-06-13T0200Z.sql.age\n")
+      store = FakeStore.new("app/2026-06-13T0200Z.sql.age\n")
       error = assert_raises(Error) { drill(store, env).run }
       assert_match(/no integrity hash recorded/, error.message)
     end
@@ -158,7 +158,7 @@ module EiseronAutomation
     end
 
     def test_rejects_an_unsafe_product_name
-      vars = env("PROD_BACKUP_NAME" => "afinados;DROP")
+      vars = env("PROD_BACKUP_NAME" => "app;DROP")
       error = assert_raises(Error) { drill(FakeStore.new(history("x.sql.age")), vars).run }
       assert_match(/not a valid postgres identifier/, error.message)
     end

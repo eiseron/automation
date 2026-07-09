@@ -16,10 +16,10 @@ module EiseronAutomation
     def env(over = {})
       {
         "PROD_BACKUP_DRILL_KEY" => "AGE-SECRET-KEY-1DRILL",
-        "APP_SERVICE" => "afinados",
+        "APP_SERVICE" => "app",
         "PROD_HOST" => "10.0.0.1",
-        "PROD_RESTORE_KEY" => "afinados/2026-06-13T0200Z.sql.age",
-        "PROD_RESTORE_CONFIRM" => "afinados_prod"
+        "PROD_RESTORE_KEY" => "app/2026-06-13T0200Z.sql.age",
+        "PROD_RESTORE_CONFIRM" => "app_prod"
       }.merge(over)
     end
 
@@ -40,13 +40,13 @@ module EiseronAutomation
       restore(env).run
       cmd = @runner.stdin_cmd
       assert_equal %w[ssh deploy@10.0.0.1 docker exec -i], cmd.first(5)
-      assert_equal %w[afinados-backup eiseron db restore], cmd.last(4)
+      assert_equal %w[app-backup eiseron db restore], cmd.last(4)
     end
 
     def test_passes_the_non_secret_restore_params_as_exec_env
       restore(env).run
-      assert_includes @runner.stdin_cmd, "PROD_RESTORE_KEY=afinados/2026-06-13T0200Z.sql.age"
-      assert_includes @runner.stdin_cmd, "PROD_RESTORE_CONFIRM=afinados_prod"
+      assert_includes @runner.stdin_cmd, "PROD_RESTORE_KEY=app/2026-06-13T0200Z.sql.age"
+      assert_includes @runner.stdin_cmd, "PROD_RESTORE_CONFIRM=app_prod"
     end
 
     def test_aborts_without_the_drill_key

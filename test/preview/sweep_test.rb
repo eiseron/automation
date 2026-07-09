@@ -42,7 +42,7 @@ module EiseronAutomation
         end
       end
 
-      def env = { "EISERON_PREVIEW_APP_NAME" => "afinados" }
+      def env = { "EISERON_PREVIEW_APP_NAME" => "app" }
 
       def run_sweep(projects_json:, labels: {}, ids: {}, states: {})
         ssh = FakeSsh.new(scripted: {
@@ -64,16 +64,16 @@ module EiseronAutomation
         td = run_sweep(
           projects_json: JSON.generate(names.map { |n| { "Name" => n } }),
           ids: {
-            "docker compose -p mr-a ps -q afinados" => "cid-a",
-            "docker compose -p mr-b ps -q afinados" => "cid-b",
-            "docker compose -p mr-c ps -q afinados" => "cid-c",
-            "docker compose -p mr-d ps -q afinados" => "cid-d"
+            "docker compose -p mr-a ps -q app" => "cid-a",
+            "docker compose -p mr-b ps -q app" => "cid-b",
+            "docker compose -p mr-c ps -q app" => "cid-c",
+            "docker compose -p mr-d ps -q app" => "cid-d"
           },
           labels: {
-            'docker inspect cid-a --format \'{{ index .Config.Labels "afinados.preview.mr_iid" }}\'' => "1\n",
-            'docker inspect cid-b --format \'{{ index .Config.Labels "afinados.preview.mr_iid" }}\'' => "2\n",
-            'docker inspect cid-c --format \'{{ index .Config.Labels "afinados.preview.mr_iid" }}\'' => "3\n",
-            'docker inspect cid-d --format \'{{ index .Config.Labels "afinados.preview.mr_iid" }}\'' => "4\n"
+            'docker inspect cid-a --format \'{{ index .Config.Labels "app.preview.mr_iid" }}\'' => "1\n",
+            'docker inspect cid-b --format \'{{ index .Config.Labels "app.preview.mr_iid" }}\'' => "2\n",
+            'docker inspect cid-c --format \'{{ index .Config.Labels "app.preview.mr_iid" }}\'' => "3\n",
+            'docker inspect cid-d --format \'{{ index .Config.Labels "app.preview.mr_iid" }}\'' => "4\n"
           },
           states: { "1" => "opened", "2" => "merged", "3" => "closed", "4" => "not_found" }
         )
@@ -84,8 +84,8 @@ module EiseronAutomation
       def test_skips_projects_without_mr_iid_label
         td = run_sweep(
           projects_json: JSON.generate([{ "Name" => "mr-orphan" }]),
-          ids: { "docker compose -p mr-orphan ps -q afinados" => "cid-x" },
-          labels: { 'docker inspect cid-x --format \'{{ index .Config.Labels "afinados.preview.mr_iid" }}\'' => "" }
+          ids: { "docker compose -p mr-orphan ps -q app" => "cid-x" },
+          labels: { 'docker inspect cid-x --format \'{{ index .Config.Labels "app.preview.mr_iid" }}\'' => "" }
         )
         assert_empty td.calls
       end
@@ -93,7 +93,7 @@ module EiseronAutomation
       def test_skips_projects_with_no_running_container
         td = run_sweep(
           projects_json: JSON.generate([{ "Name" => "mr-stopped" }]),
-          ids: { "docker compose -p mr-stopped ps -q afinados" => "" }
+          ids: { "docker compose -p mr-stopped ps -q app" => "" }
         )
         assert_empty td.calls
       end
@@ -101,8 +101,8 @@ module EiseronAutomation
       def test_skips_unknown_states
         td = run_sweep(
           projects_json: JSON.generate([{ "Name" => "mr-weird" }]),
-          ids: { "docker compose -p mr-weird ps -q afinados" => "cid-w" },
-          labels: { 'docker inspect cid-w --format \'{{ index .Config.Labels "afinados.preview.mr_iid" }}\'' => "99" },
+          ids: { "docker compose -p mr-weird ps -q app" => "cid-w" },
+          labels: { 'docker inspect cid-w --format \'{{ index .Config.Labels "app.preview.mr_iid" }}\'' => "99" },
           states: { "99" => "error" }
         )
         assert_empty td.calls
@@ -112,13 +112,13 @@ module EiseronAutomation
         ssh = FakeSsh.new(
           scripted: {
             "docker compose ls --filter name=mr- --format json" => JSON.generate([{ "Name" => "mr-foo" }]),
-            "docker compose -p mr-foo ps -q holter" => ""
+            "docker compose -p mr-foo ps -q beta" => ""
           }
         )
-        Sweep.new(env: env.merge("EISERON_PREVIEW_SERVICE" => "holter"),
+        Sweep.new(env: env.merge("EISERON_PREVIEW_SERVICE" => "beta"),
                   io: StringIO.new, ssh: ssh, registry: FakeRegistry.new,
                   teardown: FakeTeardown.new).run
-        assert_includes ssh.captures, "docker compose -p mr-foo ps -q holter"
+        assert_includes ssh.captures, "docker compose -p mr-foo ps -q beta"
       end
     end
   end

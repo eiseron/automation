@@ -18,10 +18,10 @@ module EiseronAutomation
 
     def env(over = {})
       {
-        "CI_PROJECT_PATH" => "eiseron/afinados/afinados-ops",
+        "CI_PROJECT_PATH" => "acme/app/app-ops",
         "CI_JOB_NAME" => "db-backup-verify",
-        "CI_PIPELINE_URL" => "https://gitlab.com/eiseron/afinados/afinados-ops/-/pipelines/123",
-        "CI_JOB_URL" => "https://gitlab.com/eiseron/afinados/afinados-ops/-/jobs/456",
+        "CI_PIPELINE_URL" => "https://gitlab.com/acme/app/app-ops/-/pipelines/123",
+        "CI_JOB_URL" => "https://gitlab.com/acme/app/app-ops/-/jobs/456",
         "CI_COMMIT_REF_NAME" => "production",
         "CI_COMMIT_SHORT_SHA" => "abc1234"
       }.merge(over)
@@ -35,13 +35,13 @@ module EiseronAutomation
 
     def test_message_includes_project_and_job_name_on_the_first_line
       message = run_notify
-      assert_equal "FAIL: eiseron/afinados/afinados-ops · job db-backup-verify", message.lines.fetch(0).chomp
+      assert_equal "FAIL: acme/app/app-ops · job db-backup-verify", message.lines.fetch(0).chomp
     end
 
     def test_message_includes_clickable_pipeline_and_job_urls
       message = run_notify
-      assert_includes message, "Pipeline: https://gitlab.com/eiseron/afinados/afinados-ops/-/pipelines/123"
-      assert_includes message, "Job: https://gitlab.com/eiseron/afinados/afinados-ops/-/jobs/456"
+      assert_includes message, "Pipeline: https://gitlab.com/acme/app/app-ops/-/pipelines/123"
+      assert_includes message, "Job: https://gitlab.com/acme/app/app-ops/-/jobs/456"
     end
 
     def test_message_includes_ref_and_short_sha

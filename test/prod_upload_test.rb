@@ -19,8 +19,8 @@ module EiseronAutomation
     def base_env
       {
         "AWS_ACCESS_KEY_ID" => "key",
-        "PROD_ASSETS_BUCKET" => "afinados-assets",
-        "PROD_SOURCEMAPS_BUCKET" => "afinados-sourcemaps"
+        "PROD_ASSETS_BUCKET" => "app-assets",
+        "PROD_SOURCEMAPS_BUCKET" => "app-sourcemaps"
       }
     end
 
@@ -54,7 +54,7 @@ module EiseronAutomation
       tm = run_upload(base_env)
       buckets = tm.calls.map { |call| call[:bucket] }
       dirs = tm.calls.map { |call| call[:dir] }
-      assert_equal %w[afinados-assets afinados-sourcemaps], buckets
+      assert_equal %w[app-assets app-sourcemaps], buckets
       assert(tm.calls.all? { |call| call[:recursive] })
       assert_equal %w[priv/static priv/static], dirs
     end
