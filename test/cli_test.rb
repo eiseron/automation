@@ -122,5 +122,11 @@ module EiseronAutomation
     def test_obs_query_defaults_to_the_openobserve_backend
       assert_instance_of Observability::Query, obs_query_for({})
     end
+
+    def test_obs_retention_is_registered_and_aborts_without_clickhouse_url
+      code, err = run_cli(%w[obs retention], env: {})
+      assert_equal 1, code
+      assert_match(/missing env CLICKHOUSE_URL/, err)
+    end
   end
 end
