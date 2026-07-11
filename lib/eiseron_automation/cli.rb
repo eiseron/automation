@@ -123,9 +123,17 @@ module EiseronAutomation
     def ci_tofu_coverage = CI::TofuCoverage.new(io: @io, args: @args).run
 
     def observability_deploy = Observability::Deploy.new(env: @env, io: @io).deploy
-    def obs_search = Observability::Query.new(env: @env, io: @io, args: @args).search
-    def obs_streams = Observability::Query.new(env: @env, io: @io, args: @args).streams
-    def obs_tail = Observability::Query.new(env: @env, io: @io, args: @args).tail
+    def obs_search = obs_query.search
+    def obs_streams = obs_query.streams
+    def obs_tail = obs_query.tail
+
+    def obs_query
+      case @env["OBSERVABILITY_BACKEND"]
+      when "clickhouse" then Observability::ClickHouseQuery.new(env: @env, io: @io, args: @args)
+      else Observability::Query.new(env: @env, io: @io, args: @args)
+      end
+    end
+
     def notify_ci_failure = Notify::CIFailure.new(env: @env, io: @io, err: @err).run
 
     def cf_import_otp_idp

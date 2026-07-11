@@ -109,5 +109,18 @@ module EiseronAutomation
       code, = run_cli(%w[prod trigger], env: {})
       assert_equal 0, code
     end
+
+    def obs_query_for(env)
+      CLI.new(%w[obs streams], env: env, io: StringIO.new, err: StringIO.new).send(:obs_query)
+    end
+
+    def test_obs_query_routes_to_clickhouse_when_backend_is_set
+      assert_instance_of Observability::ClickHouseQuery,
+                         obs_query_for({ "OBSERVABILITY_BACKEND" => "clickhouse" })
+    end
+
+    def test_obs_query_defaults_to_the_openobserve_backend
+      assert_instance_of Observability::Query, obs_query_for({})
+    end
   end
 end
