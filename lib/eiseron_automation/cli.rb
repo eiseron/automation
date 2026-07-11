@@ -38,12 +38,13 @@ module EiseronAutomation
       "obs tail" => :obs_tail,
       "obs tenant" => :obs_tenant,
       "obs retention" => :obs_retention,
+      "obs login" => :obs_login,
       "notify ci-failure" => :notify_ci_failure,
       "cf import-otp-idp" => :cf_import_otp_idp
     }.freeze
 
     ARG_COMMANDS = ["ci update", "ci coverage-gate", "ci tofu-coverage", "obs search", "obs tail", "obs tenant",
-                    "obs retention"].freeze
+                    "obs retention", "obs login"].freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
       @argv = argv
@@ -129,13 +130,15 @@ module EiseronAutomation
     def obs_search = obs_query.search
     def obs_streams = obs_query.streams
     def obs_tail = obs_query.tail
-    def obs_tenant = Observability::Tenant.new(env: @env, io: @io, args: @args).provision
-    def obs_retention = Observability::Retention.new(env: @env, io: @io, args: @args).apply
+    def obs_tenant = Observability::Tenant.new(env: obs_env, io: @io, args: @args).provision
+    def obs_retention = Observability::Retention.new(env: obs_env, io: @io, args: @args).apply
+    def obs_login = Observability::Login.new(env: @env, io: @io, args: @args).run
+    def obs_env = Observability::Config.new(@env).merged_env
 
     def obs_query
-      case @env["OBSERVABILITY_BACKEND"]
-      when "clickhouse" then Observability::ClickHouseQuery.new(env: @env, io: @io, args: @args)
-      else Observability::Query.new(env: @env, io: @io, args: @args)
+      case obs_env["OBSERVABILITY_BACKEND"]
+      when "clickhouse" then Observability::ClickHouseQuery.new(env: obs_env, io: @io, args: @args)
+      else Observability::Query.new(env: obs_env, io: @io, args: @args)
       end
     end
 

@@ -128,5 +128,11 @@ module EiseronAutomation
       assert_equal 1, code
       assert_match(/missing env CLICKHOUSE_URL/, err)
     end
+
+    def test_obs_login_is_registered_and_aborts_without_credentials
+      code, err = run_cli(%w[obs login], env: {})
+      assert_equal 1, code
+      assert_match(/usage: obs login/, err)
+    end
   end
 end
