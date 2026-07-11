@@ -36,11 +36,12 @@ module EiseronAutomation
       "obs search" => :obs_search,
       "obs streams" => :obs_streams,
       "obs tail" => :obs_tail,
+      "obs tenant" => :obs_tenant,
       "notify ci-failure" => :notify_ci_failure,
       "cf import-otp-idp" => :cf_import_otp_idp
     }.freeze
 
-    ARG_COMMANDS = ["ci update", "ci coverage-gate", "ci tofu-coverage", "obs search", "obs tail"].freeze
+    ARG_COMMANDS = ["ci update", "ci coverage-gate", "ci tofu-coverage", "obs search", "obs tail", "obs tenant"].freeze
 
     def initialize(argv, env: ENV, io: $stdout, err: $stderr)
       @argv = argv
@@ -126,6 +127,7 @@ module EiseronAutomation
     def obs_search = obs_query.search
     def obs_streams = obs_query.streams
     def obs_tail = obs_query.tail
+    def obs_tenant = Observability::Tenant.new(env: @env, io: @io, args: @args).provision
 
     def obs_query
       case @env["OBSERVABILITY_BACKEND"]
