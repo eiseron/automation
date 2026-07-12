@@ -37,7 +37,7 @@ module EiseronAutomation
     def base_env
       {
         "PROD_TAG" => "v1.4.0",
-        "PROD_PROJECT" => "eiseron/afinados",
+        "PROD_PROJECT" => "acme/app",
         "PROD_DEPLOY_READ_TOKEN" => "tok",
         "CI_API_V4_URL" => "https://gitlab.com/api/v4",
         "PROD_TENANT_SLUG" => "app",
@@ -164,9 +164,9 @@ module EiseronAutomation
 
     def test_deploy_honours_the_app_and_namespace_overrides
       runner = FakeRunner.new
-      deploy(env: base_env.merge("PROD_APP" => "web", "PROD_NAMESPACE" => "afinados"), runner: runner).deploy
+      deploy(env: base_env.merge("PROD_APP" => "web", "PROD_NAMESPACE" => "other"), runner: runner).deploy
       assert_equal(["kubectl", "set", "image", "deployment/web",
-                    "web=registry.example.test/acme/app/prod:v1.4.0", "-n", "afinados"], runner.runs.fetch(0)[:cmd])
+                    "web=registry.example.test/acme/app/prod:v1.4.0", "-n", "other"], runner.runs.fetch(0)[:cmd])
     end
 
     def test_backup_creates_an_on_demand_cnpg_backup_resource
