@@ -17,6 +17,7 @@ module EiseronAutomation
       "prod setup" => :prod_setup,
       "prod backup" => :prod_backup,
       "prod restore" => :prod_restore,
+      "prod reprovision" => :prod_reprovision,
       "prod tenant" => :prod_tenant,
       "prod upload" => :prod_upload,
       "prod trigger" => :prod_trigger,
@@ -109,6 +110,7 @@ module EiseronAutomation
     def prod_setup = Prod::Deploy.new(env: @env, io: @io).setup
     def prod_backup = Prod::Deploy.new(env: @env, io: @io).backup
     def prod_restore = Prod::Restore.new(env: @env, io: @io).run
+    def prod_reprovision = Prod::Reprovision.new(env: @env, io: @io).run
     def prod_tenant = Prod::Tenant.new(env: @env, io: @io).create
     def prod_upload = Prod::Upload.new(env: @env, io: @io).run
     def prod_trigger = Prod::Trigger.new(env: @env, io: @io).run

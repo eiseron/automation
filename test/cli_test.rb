@@ -56,6 +56,12 @@ module EiseronAutomation
       assert_match(/PROD_RESTORE_KEY is empty/, err)
     end
 
+    def test_prod_reprovision_is_registered_and_aborts_without_node_targets
+      code, err = run_cli(%w[prod reprovision], env: {})
+      assert_equal 1, code
+      assert_match(/PROD_NODE_TARGETS is empty/, err)
+    end
+
     def test_db_restore_is_registered_and_refuses_without_confirmation
       code, err = run_cli(%w[db restore], env: {})
       assert_equal 1, code
