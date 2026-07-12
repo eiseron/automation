@@ -5,11 +5,13 @@ require "test_helper"
 module EiseronAutomation
   class ProdTest < Minitest::Test
     class FakeRunner
-      attr_reader :runs, :stdins
+      attr_reader :runs, :stdins, :captures
 
-      def initialize
+      def initialize(primary: "platform-db-1")
         @runs = []
         @stdins = []
+        @captures = []
+        @primary = primary
       end
 
       def run(env, *cmd)
@@ -18,6 +20,11 @@ module EiseronAutomation
 
       def run_stdin(input, _env, *cmd)
         @stdins << { sql: input, cmd: cmd }
+      end
+
+      def capture(*cmd)
+        @captures << cmd
+        @primary
       end
     end
 
@@ -30,17 +37,18 @@ module EiseronAutomation
     def base_env
       {
         "PROD_TAG" => "v1.4.0",
-        "PROD_PROJECT" => "acme/app",
+        "PROD_PROJECT" => "eiseron/afinados",
         "PROD_DEPLOY_READ_TOKEN" => "tok",
         "CI_API_V4_URL" => "https://gitlab.com/api/v4",
         "PROD_TENANT_SLUG" => "app",
         "PROD_TENANT_PASSWORD" => "s3cr3t",
-        "PROD_HOST" => "10.0.0.1",
-        "APP_SERVICE" => "app",
-        "APP_IMAGE" => "registry.example.com/acme/app/prod",
-        "APP_RELEASE_MODULE" => "App",
-        "SECRET_KEY_BASE" => "kb"
+        "PROD_IMAGE" => "registry.example.test/acme/app/prod",
+        "PROD_MIGRATE_CMD" => "bin/app eval App.Release.migrate"
       }
+    end
+
+    def deploy(env: base_env, runner: FakeRunner.new, client: FakeClient.new(%w[v1.3.0 v1.4.0]))
+      Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: client)
     end
 
     def test_latest_is_true_when_tag_is_the_highest_release
@@ -64,55 +72,43 @@ module EiseronAutomation
       assert_match(/not a release tag/, error.message)
     end
 
-    def test_deploy_updates_the_service_start_first_then_migrates_and_seeds
+    def test_deploy_sets_the_deployment_image_to_the_tag
       runner = FakeRunner.new
-      client = FakeClient.new(%w[v1.3.0 v1.4.0])
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
-
-      image = "registry.example.com/acme/app/prod:v1.4.0"
-      commands = runner.runs.map { |run| run[:cmd] }
-      assert_equal [
-        ["docker", "service", "update", "--image", image, "--update-order", "start-first", "--with-registry-auth",
-         "app"],
-        ["docker", "run", "--rm", "--network", "internal", "-e", "DATABASE_URL", "-e", "SECRET_KEY_BASE", "-e",
-         "PHX_SERVER=false", image, "bin/app", "eval", "App.Release.migrate"],
-        ["docker", "run", "--rm", "--network", "internal", "-e", "DATABASE_URL", "-e", "SECRET_KEY_BASE", "-e",
-         "PHX_SERVER=false", image, "bin/app", "eval", "App.Release.seed"]
-      ], commands
+      deploy(runner: runner).deploy
+      assert_equal(["kubectl", "set", "image", "deployment/app",
+                    "app=registry.example.test/acme/app/prod:v1.4.0", "-n", "app"], runner.runs.fetch(0)[:cmd])
     end
 
-    def test_deploy_targets_the_prod_host_over_ssh
+    def test_deploy_waits_for_the_rollout_to_complete
       runner = FakeRunner.new
-      client = FakeClient.new(%w[v1.3.0 v1.4.0])
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
-
-      assert_equal "ssh://deploy@10.0.0.1", runner.runs.fetch(0)[:env].fetch("DOCKER_HOST")
+      deploy(runner: runner).deploy
+      assert_equal(["kubectl", "rollout", "status", "deployment/app", "-n", "app", "--timeout=300s"],
+                   runner.runs.fetch(1)[:cmd])
     end
 
-    def test_deploy_runs_migrations_with_the_assembled_database_url
+    def test_deploy_runs_migrations_after_the_rollout
       runner = FakeRunner.new
-      client = FakeClient.new(%w[v1.3.0 v1.4.0])
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
-
-      migrate = runner.runs.fetch(1)
-      assert_equal "ecto://app:s3cr3t@platform-db/app_prod", migrate[:env].fetch("DATABASE_URL")
+      deploy(runner: runner).deploy
+      assert_equal(["kubectl", "exec", "-n", "app", "deployment/app", "--", "bin/app", "eval", "App.Release.migrate"],
+                   runner.runs.fetch(2)[:cmd])
     end
 
-    def test_deploy_ensures_the_db_password_only_once
+    def test_deploy_ensures_the_tenant_password_against_the_managed_secret
       runner = FakeRunner.new
-      client = FakeClient.new(%w[v1.3.0 v1.4.0])
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
+      deploy(runner: runner).deploy
+      assert_match(/ALTER ROLE %I PASSWORD %L', 'app', 's3cr3t'/, runner.stdins.fetch(0)[:sql])
+    end
 
+    def test_deploy_ensures_the_password_exactly_once
+      runner = FakeRunner.new
+      deploy(runner: runner).deploy
       assert_equal 1, runner.stdins.length
     end
 
-    def test_deploy_ensures_the_db_password_and_injects_the_database_url
+    def test_deploy_targets_the_cnpg_primary_for_the_password_change
       runner = FakeRunner.new
-      client = FakeClient.new(%w[v1.3.0 v1.4.0])
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: client).deploy
-
-      assert_match(/ALTER ROLE %I PASSWORD %L', 'app', 's3cr3t'/, runner.stdins.fetch(0)[:sql])
-      assert_equal "ecto://app:s3cr3t@platform-db/app_prod", runner.runs.fetch(0)[:env].fetch("DATABASE_URL")
+      deploy(runner: runner).deploy
+      assert_includes runner.captures.fetch(0), "cnpg.io/cluster=platform-db,cnpg.io/instanceRole=primary"
     end
 
     def test_deploy_never_exports_database_url_to_the_ci_environment
@@ -121,128 +117,130 @@ module EiseronAutomation
 
     def test_deploy_refuses_a_non_latest_tag
       runner = FakeRunner.new
-      env = base_env.merge("PROD_TAG" => "v1.3.0")
-      client = FakeClient.new(%w[v1.3.0 v1.4.0])
-      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: client)
-
-      error = assert_raises(Error) { prod.deploy }
+      error = assert_raises(Error) { deploy(env: base_env.merge("PROD_TAG" => "v1.3.0"), runner: runner).deploy }
       assert_match(/not the latest release/, error.message)
+    end
+
+    def test_deploy_touches_nothing_when_it_refuses
+      runner = FakeRunner.new
+      assert_raises(Error) { deploy(env: base_env.merge("PROD_TAG" => "v1.3.0"), runner: runner).deploy }
       assert_empty runner.runs
     end
 
     def test_deploy_allows_an_old_tag_with_the_override
       runner = FakeRunner.new
       env = base_env.merge("PROD_TAG" => "v1.3.0", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "web")
-      Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new(%w[v1.3.0 v1.4.0])).deploy
+      deploy(env: env, runner: runner).deploy
+      assert_equal "app=registry.example.test/acme/app/prod:v1.3.0", runner.runs.fetch(0)[:cmd].fetch(4)
+    end
 
-      image = "registry.example.com/acme/app/prod:v1.3.0"
-      first = runner.runs.fetch(0)[:cmd]
-      assert_equal ["docker", "service", "update", "--image", image, "--update-order", "start-first",
-                    "--with-registry-auth", "app"], first
+    def test_deploy_ignores_the_override_outside_a_web_pipeline
+      runner = FakeRunner.new
+      env = base_env.merge("PROD_TAG" => "v1.3.0", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "trigger")
+      error = assert_raises(Error) { deploy(env: env, runner: runner).deploy }
+      assert_match(/not the latest release/, error.message)
+    end
+
+    def test_deploy_validates_tag_format_even_with_override
+      runner = FakeRunner.new
+      env = base_env.merge("PROD_TAG" => "nightly", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "web")
+      error = assert_raises(Error) { deploy(env: env, runner: runner).deploy }
+      assert_match(/not a release tag/, error.message)
     end
 
     def test_deploy_raises_when_prod_tag_is_missing
-      env = base_env.except("PROD_TAG")
-      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: FakeRunner.new, client: FakeClient.new([]))
-      assert_raises(Error) { prod.deploy }
+      assert_raises(Error) { deploy(env: base_env.except("PROD_TAG")).deploy }
     end
 
-    def test_backup_execs_the_one_shot_in_the_backup_accessory
-      runner = FakeRunner.new
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
-
-      commands = runner.runs.map { |run| run[:cmd] }
-      assert_equal [["kamal", "accessory", "exec", "backup", "--version=latest", "eiseron", "db", "backup"]], commands
+    def test_deploy_raises_when_the_image_is_missing
+      error = assert_raises(Error) { deploy(env: base_env.except("PROD_IMAGE")).deploy }
+      assert_match(/PROD_IMAGE is empty/, error.message)
     end
 
-    def test_backup_passes_a_version_so_kamal_does_not_need_a_git_repo
-      runner = FakeRunner.new
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
-
-      assert_includes runner.runs.fetch(0)[:cmd], "--version=latest"
+    def test_deploy_raises_when_the_migrate_command_is_missing
+      error = assert_raises(Error) { deploy(env: base_env.except("PROD_MIGRATE_CMD")).deploy }
+      assert_match(/PROD_MIGRATE_CMD is empty/, error.message)
     end
 
-    def test_backup_injects_the_database_url_for_the_manifest_render
+    def test_deploy_honours_the_app_and_namespace_overrides
       runner = FakeRunner.new
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
+      deploy(env: base_env.merge("PROD_APP" => "web", "PROD_NAMESPACE" => "afinados"), runner: runner).deploy
+      assert_equal(["kubectl", "set", "image", "deployment/web",
+                    "web=registry.example.test/acme/app/prod:v1.4.0", "-n", "afinados"], runner.runs.fetch(0)[:cmd])
+    end
 
-      assert_equal "ecto://app:s3cr3t@platform-db/app_prod", runner.runs.fetch(0)[:env].fetch("DATABASE_URL")
+    def test_backup_creates_an_on_demand_cnpg_backup_resource
+      runner = FakeRunner.new
+      deploy(runner: runner).backup
+      assert_equal ["kubectl", "create", "-n", "platform", "-f", "-"], runner.stdins.fetch(0)[:cmd]
+    end
+
+    def test_backup_manifest_is_a_cnpg_backup
+      runner = FakeRunner.new
+      deploy(runner: runner).backup
+      assert_match(/kind: Backup/, runner.stdins.fetch(0)[:sql])
+    end
+
+    def test_backup_targets_the_platform_cluster
+      runner = FakeRunner.new
+      deploy(runner: runner).backup
+      assert_match(/name: platform-db/, runner.stdins.fetch(0)[:sql])
     end
 
     def test_backup_does_not_rotate_the_tenant_password
       runner = FakeRunner.new
-      Prod::Deploy.new(env: base_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).backup
-
-      assert_empty runner.stdins
+      deploy(runner: runner).backup
+      assert_empty runner.captures
     end
 
     def web_env(overrides = {})
       base_env.merge("CI_PIPELINE_SOURCE" => "web").merge(overrides)
     end
 
-    def test_setup_runs_kamal_setup_with_version_and_skip_push
+    def test_setup_rolls_out_the_image
       runner = FakeRunner.new
-      Prod::Deploy.new(env: web_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).setup
+      deploy(env: web_env, runner: runner).setup
+      assert_equal(["kubectl", "set", "image", "deployment/app",
+                    "app=registry.example.test/acme/app/prod:v1.4.0", "-n", "app"], runner.runs.fetch(0)[:cmd])
+    end
 
-      commands = runner.runs.map { |run| run[:cmd] }
-      assert_equal [["kamal", "setup", "--version=v1.4.0", "--skip-push"]], commands
+    def test_setup_runs_migrations
+      runner = FakeRunner.new
+      deploy(env: web_env, runner: runner).setup
+      assert_equal(["kubectl", "exec", "-n", "app", "deployment/app", "--", "bin/app", "eval", "App.Release.migrate"],
+                   runner.runs.fetch(2)[:cmd])
     end
 
     def test_setup_also_ensures_the_db_password
       runner = FakeRunner.new
-      Prod::Deploy.new(env: web_env, io: StringIO.new, runner: runner, client: FakeClient.new([])).setup
-
+      deploy(env: web_env, runner: runner).setup
       assert_match(/ALTER ROLE %I PASSWORD %L', 'app'/, runner.stdins.fetch(0)[:sql])
-      assert runner.runs.fetch(0)[:env].key?("DATABASE_URL")
     end
 
     def test_setup_does_not_apply_the_latest_release_guard
       runner = FakeRunner.new
-      env = web_env("PROD_TAG" => "v1.3.0")
-      Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new(%w[v1.3.0 v1.4.0])).setup
-
-      commands = runner.runs.map { |run| run[:cmd] }
-      assert_equal [["kamal", "setup", "--version=v1.3.0", "--skip-push"]], commands
+      deploy(env: web_env("PROD_TAG" => "v1.3.0"), runner: runner).setup
+      assert_equal "app=registry.example.test/acme/app/prod:v1.3.0", runner.runs.fetch(0)[:cmd].fetch(4)
     end
 
     def test_setup_refuses_outside_a_web_pipeline
       runner = FakeRunner.new
-      env = base_env.merge("CI_PIPELINE_SOURCE" => "trigger")
-      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new([]))
-
-      error = assert_raises(Error) { prod.setup }
+      error = assert_raises(Error) do
+        deploy(env: base_env.merge("CI_PIPELINE_SOURCE" => "trigger"), runner: runner).setup
+      end
       assert_match(/manual web pipeline/, error.message)
+    end
+
+    def test_setup_touches_nothing_outside_a_web_pipeline
+      runner = FakeRunner.new
+      assert_raises(Error) { deploy(env: base_env.merge("CI_PIPELINE_SOURCE" => "trigger"), runner: runner).setup }
       assert_empty runner.runs
     end
 
     def test_setup_validates_tag_format
       runner = FakeRunner.new
-      env = web_env("PROD_TAG" => "nightly")
-      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new([]))
-
-      error = assert_raises(Error) { prod.setup }
+      error = assert_raises(Error) { deploy(env: web_env("PROD_TAG" => "nightly"), runner: runner).setup }
       assert_match(/not a release tag/, error.message)
-      assert_empty runner.runs
-    end
-
-    def test_deploy_ignores_override_outside_a_web_pipeline
-      runner = FakeRunner.new
-      env = base_env.merge("PROD_TAG" => "v1.3.0", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "trigger")
-      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new(%w[v1.3.0 v1.4.0]))
-
-      error = assert_raises(Error) { prod.deploy }
-      assert_match(/not the latest release/, error.message)
-      assert_empty runner.runs
-    end
-
-    def test_deploy_validates_tag_format_even_with_override
-      runner = FakeRunner.new
-      env = base_env.merge("PROD_TAG" => "nightly", "PROD_DEPLOY_ALLOW_OLD" => "true", "CI_PIPELINE_SOURCE" => "web")
-      prod = Prod::Deploy.new(env: env, io: StringIO.new, runner: runner, client: FakeClient.new([]))
-
-      error = assert_raises(Error) { prod.deploy }
-      assert_match(/not a release tag/, error.message)
-      assert_empty runner.runs
     end
   end
 end

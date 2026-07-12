@@ -16,17 +16,8 @@ module EiseronAutomation
         tag = require_env("PROD_TAG")
         guard_downgrade(tag)
         ensure_tenant_password
-        @io.puts "Deploying #{tag} with a start-first rolling update"
-        docker(
-          "service", "update",
-          "--image", app_image(tag),
-          "--update-order", "start-first",
-          "--with-registry-auth",
-          require_env("APP_SERVICE")
-        )
-        @io.puts "Running migrations and seeds for #{tag}"
-        release_eval(tag, "migrate")
-        release_eval(tag, "seed")
+        roll_out(tag)
+        migrate(tag)
       end
 
       def setup
@@ -34,58 +25,50 @@ module EiseronAutomation
         raise Error, "PROD_TAG '#{tag}' is not a release tag (vMAJOR.MINOR.PATCH)" unless Plan.parse(tag)
         unless @env.fetch("CI_PIPELINE_SOURCE", "") == "web"
           raise Error,
-                "prod setup bootstraps a host and skips the latest-release guard; run it from a manual web pipeline."
+                "prod setup skips the latest-release guard; run it from a manual web pipeline."
         end
 
         ensure_tenant_password
-        @io.puts "Setting up #{tag} (first deploy: accessories + env + app, skip-push)"
-        kamal("setup", "--version=#{tag}", "--skip-push")
+        @io.puts "Setting up #{app} at #{tag} (first deploy)"
+        roll_out(tag)
+        migrate(tag)
       end
 
       def backup
-        @io.puts "Running an on-demand backup in the backup accessory"
-        kamal("accessory", "exec", "backup", "--version=latest", "eiseron", "db", "backup")
+        @io.puts "Requesting an on-demand CloudNativePG backup of #{pg_cluster}"
+        @runner.run_stdin(backup_manifest, @env.to_h, "kubectl", "create", "-n", pg_namespace, "-f", "-")
       end
 
       private
 
-      def ensure_tenant_password
-        tenant.ensure_password
+      def roll_out(tag)
+        @io.puts "Rolling out #{app} to #{tag}"
+        kubectl("set", "image", "deployment/#{app}", "#{app}=#{image}:#{tag}", "-n", namespace)
+        kubectl("rollout", "status", "deployment/#{app}", "-n", namespace, "--timeout=#{rollout_timeout}")
       end
 
-      def kamal(*)
-        @runner.run(kamal_env, "kamal", *)
+      def migrate(tag)
+        @io.puts "Running migrations for #{tag}"
+        kubectl("exec", "-n", namespace, "deployment/#{app}", "--", *migrate_command)
       end
 
-      def kamal_env
-        @kamal_env ||= @env.to_h.merge("DATABASE_URL" => tenant.database_url)
+      def ensure_tenant_password = tenant.ensure_password
+
+      def kubectl(*)
+        @runner.run(@env.to_h, "kubectl", *)
       end
 
-      def app_image(tag)
-        "#{require_env('APP_IMAGE')}:#{tag}"
-      end
-
-      def release_eval(tag, task)
-        docker(
-          "run", "--rm",
-          "--network", @env.fetch("SWARM_INTERNAL_NETWORK", "internal"),
-          "-e", "DATABASE_URL",
-          "-e", "SECRET_KEY_BASE",
-          "-e", "PHX_SERVER=false",
-          app_image(tag),
-          "bin/#{require_env('APP_SERVICE')}", "eval", "#{require_env('APP_RELEASE_MODULE')}.Release.#{task}"
-        )
-      end
-
-      def docker(*)
-        @runner.run(docker_env, "docker", *)
-      end
-
-      def docker_env
-        @docker_env ||= @env.to_h.merge(
-          "DOCKER_HOST" => "ssh://#{@env.fetch('DEPLOY_SSH_USER', 'deploy')}@#{require_env('PROD_HOST')}",
-          "DATABASE_URL" => tenant.database_url
-        )
+      def backup_manifest
+        <<~YAML
+          apiVersion: postgresql.cnpg.io/v1
+          kind: Backup
+          metadata:
+            generateName: #{pg_cluster}-ondemand-
+            namespace: #{pg_namespace}
+          spec:
+            cluster:
+              name: #{pg_cluster}
+        YAML
       end
 
       def tenant
@@ -109,6 +92,15 @@ module EiseronAutomation
       def allow_old?
         @env.fetch("PROD_DEPLOY_ALLOW_OLD", "") == "true" && @env.fetch("CI_PIPELINE_SOURCE", "") == "web"
       end
+
+      def app = @env.fetch("PROD_APP", slug)
+      def namespace = @env.fetch("PROD_NAMESPACE", app)
+      def image = require_env("PROD_IMAGE")
+      def migrate_command = require_env("PROD_MIGRATE_CMD").split
+      def rollout_timeout = @env.fetch("PROD_ROLLOUT_TIMEOUT", "300s")
+      def pg_cluster = @env.fetch("PG_CLUSTER", "platform-db")
+      def pg_namespace = @env.fetch("PG_NAMESPACE", "platform")
+      def slug = require_env("PROD_TENANT_SLUG")
 
       def client
         @client ||= GitlabClient.new(

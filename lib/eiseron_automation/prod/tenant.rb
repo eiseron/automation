@@ -14,18 +14,18 @@ module EiseronAutomation
       end
 
       def create
-        @runner.run_stdin(create_sql, @env.to_h, *psql_over_ssh)
+        @runner.run_stdin(create_sql, @env.to_h, *psql_via_kubectl)
         @io.puts "Tenant #{slug} ready (role #{slug}, database #{database})."
       end
 
       def ensure_password
-        @runner.run_stdin(alter_sql, @env.to_h, *psql_over_ssh)
+        @runner.run_stdin(alter_sql, @env.to_h, *psql_via_kubectl)
         @io.puts "Ensured #{slug} role password matches the managed secret."
       end
 
       def database_url
         scheme = @env.fetch("DB_URL_SCHEME", "ecto")
-        host = @env.fetch("PG_CONTAINER", "platform-db")
+        host = @env.fetch("PG_HOST", "platform-db-rw.platform")
         "#{scheme}://#{slug}:#{ERB::Util.url_encode(password)}@#{host}/#{database}"
       end
 
@@ -60,13 +60,32 @@ module EiseronAutomation
         "#{slug}_prod"
       end
 
-      def psql_over_ssh
-        host = require_env("PROD_HOST")
-        user = @env.fetch("DEPLOY_SSH_USER", "deploy")
-        container = @env.fetch("PG_CONTAINER", "platform-db")
-        admin = @env.fetch("PG_ADMIN_USER", "eiseron")
-        ["ssh", "#{user}@#{host}", "docker", "exec", "-i", container,
+      def psql_via_kubectl
+        ["kubectl", "exec", "-i", "-n", pg_namespace, primary_pod, "--",
          "psql", "-U", admin, "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-f", "-"]
+      end
+
+      def primary_pod
+        pod = @runner.capture(
+          "kubectl", "get", "pods", "-n", pg_namespace,
+          "-l", "cnpg.io/cluster=#{pg_cluster},cnpg.io/instanceRole=primary",
+          "-o", "jsonpath={.items[0].metadata.name}"
+        ).strip
+        raise Error, "no primary pod found for CloudNativePG cluster #{pg_cluster}" if pod.empty?
+
+        pod
+      end
+
+      def pg_cluster
+        @env.fetch("PG_CLUSTER", "platform-db")
+      end
+
+      def pg_namespace
+        @env.fetch("PG_NAMESPACE", "platform")
+      end
+
+      def admin
+        @env.fetch("PG_ADMIN_USER", "postgres")
       end
 
       def slug
