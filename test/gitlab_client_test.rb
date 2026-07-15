@@ -112,6 +112,35 @@ module EiseronAutomation
                    @requests.fetch(0)[:line]
     end
 
+    def test_set_project_variable_puts_scoped_value
+      @client.set_project_variable("TF_VAR_acme_kube_host", "https://h:6443", scope: "production")
+      request = @requests.fetch(0)
+      assert_includes request[:line],
+                      "PUT /api/v4/projects/123/variables/TF_VAR_acme_kube_host" \
+                      "?filter%5Benvironment_scope%5D=production"
+      assert_includes request[:body], "environment_scope=production"
+    end
+
+    def test_set_project_variable_falls_back_to_post_when_put_misses
+      @stub_codes = %w[404 200]
+      @client.set_project_variable("TF_VAR_acme_kube_host", "v", scope: "*")
+      assert_equal "POST /api/v4/projects/123/variables HTTP/1.1", @requests.fetch(1)[:line]
+      assert_includes @requests.fetch(1)[:body], "key=TF_VAR_acme_kube_host"
+    end
+
+    def test_delete_project_variable_is_idempotent_on_missing_variable
+      @stub_codes = ["404"]
+      assert @client.delete_project_variable("TF_VAR_acme_kube_host", scope: "*")
+    end
+
+    def test_create_pipeline_posts_ref
+      @stub_bodies = ['{"id":7,"web_url":"https://gitlab.example/p/7"}']
+      result = @client.create_pipeline(ref: "production")
+      assert_equal "POST /api/v4/projects/123/pipeline HTTP/1.1", @requests.fetch(0)[:line]
+      assert_includes @requests.fetch(0)[:body], "ref=production"
+      assert_equal 7, result["id"]
+    end
+
     def test_last_successful_pipeline_returns_first_result
       @stub_bodies = ['[{"id":42,"status":"success"}]']
       pipeline = @client.last_successful_pipeline("main")

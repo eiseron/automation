@@ -140,7 +140,38 @@ module EiseronAutomation
       JSON.parse(response.body).first
     end
 
+    def project_variable_exists?(key, scope:)
+      http(Net::HTTP::Get, variable_path(key, scope)).is_a?(Net::HTTPSuccess)
+    end
+
+    def set_project_variable(key, value, scope:, masked: false, protected: true)
+      params = { "value" => value, "masked" => masked.to_s, "protected" => protected.to_s,
+                 "environment_scope" => scope }
+      response = http(Net::HTTP::Put, variable_path(key, scope), params)
+      return if response.is_a?(Net::HTTPSuccess)
+
+      post("/variables", params.merge("key" => key))
+    end
+
+    def delete_project_variable(key, scope:)
+      response = http(Net::HTTP::Delete, variable_path(key, scope))
+      case response
+      when Net::HTTPSuccess, Net::HTTPNotFound then true
+      else
+        raise Error, "DELETE variable #{key} (#{scope}) failed: #{response.code}"
+      end
+    end
+
+    def create_pipeline(ref:)
+      response = post("/pipeline", "ref" => ref)
+      JSON.parse(response.body)
+    end
+
     private
+
+    def variable_path(key, scope)
+      "/variables/#{encode(key)}?filter%5Benvironment_scope%5D=#{encode(scope)}"
+    end
 
     def encode(value)
       CGI.escape(value)

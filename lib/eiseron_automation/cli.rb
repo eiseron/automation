@@ -21,6 +21,8 @@ module EiseronAutomation
       "prod tenant" => :prod_tenant,
       "prod upload" => :prod_upload,
       "prod trigger" => :prod_trigger,
+      "prod kube-vars-gate" => :prod_kube_vars_gate,
+      "prod kube-vars-publish" => :prod_kube_vars_publish,
       "db backup" => :db_backup,
       "db restore" => :db_restore,
       "db backup schedule" => :db_backup_schedule,
@@ -114,6 +116,8 @@ module EiseronAutomation
     def prod_tenant = Prod::Tenant.new(env: @env, io: @io).create
     def prod_upload = Prod::Upload.new(env: @env, io: @io).run
     def prod_trigger = Prod::Trigger.new(env: @env, io: @io).run
+    def prod_kube_vars_gate = Prod::KubeVars.new(env: @env, io: @io).gate
+    def prod_kube_vars_publish = Prod::KubeVars.new(env: @env, io: @io).publish
     def db_backup = DB::Backup.new(env: @env, io: @io).run
     def db_restore = DB::Restore.new(env: @env, io: @io).run
     def db_backup_schedule = DB::Schedule.new(env: @env, io: @io).run
