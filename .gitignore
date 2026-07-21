@@ -4,3 +4,5 @@
 /coverage/
 *.gem
 Gemfile.lock
+
+.claude/
