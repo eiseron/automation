@@ -145,6 +145,24 @@ module EiseronAutomation
         assert_includes migrate_script, "MIX_ENV=preview"
       end
 
+      def test_migrate_command_falls_back_to_the_release_setup_convention_when_release_module_is_known
+        ssh = FakeSsh.new
+        env = base_env.merge("PROD_RELEASE_MODULE" => "Acme")
+        with_compose_template("x:\n") { deploy(env: env, ssh: ssh) }
+        migrate_script = ssh.scripts.find { |s| s.include?("Acme.Release.setup") }
+        refute_nil migrate_script
+        assert_includes migrate_script, "mix run --no-start -e 'Acme.Release.setup'"
+      end
+
+      def test_migrate_command_override_takes_precedence_over_the_release_module_default
+        ssh = FakeSsh.new
+        env = base_env.merge("PROD_RELEASE_MODULE" => "Acme", "EISERON_PREVIEW_MIGRATE_COMMAND" => "bin/custom migrate")
+        with_compose_template("x:\n") { deploy(env: env, ssh: ssh) }
+        migrate_script = ssh.scripts.find { |s| s.include?("bin/custom migrate") }
+        refute_nil migrate_script
+        refute_includes migrate_script, "Release.setup"
+      end
+
       def test_compose_yml_is_embedded_into_bash_heredoc
         ssh = FakeSsh.new
         with_compose_template("services:\n  app:\n    image: foo\n") do

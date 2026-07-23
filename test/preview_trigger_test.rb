@@ -27,7 +27,8 @@ module EiseronAutomation
         "PREVIEW_DEPLOYER_TRIGGER_TOKEN" => "trig-tok",
         "CI_REGISTRY_IMAGE" => "registry.gitlab.com/acme/app/app",
         "CI_COMMIT_SHA" => "abcdef123",
-        "CI_API_V4_URL" => "https://gitlab.com/api/v4"
+        "CI_API_V4_URL" => "https://gitlab.com/api/v4",
+        "CI_PROJECT_PATH" => "acme/app/app"
       }
     end
 
@@ -56,6 +57,12 @@ module EiseronAutomation
       assert_equal "abcdef123", vars["PREVIEW_SHA"]
       assert_equal "12", vars["PREVIEW_MR_IID"]
       assert_equal "registry.gitlab.com/acme/app/app/preview", vars["PREVIEW_IMAGE_REPO"]
+      assert_equal "acme/app/app", vars["PREVIEW_PROJECT_PATH"]
+    end
+
+    def test_requires_ci_project_path
+      err = assert_raises(Error) { run_trigger(base_env.except("CI_PROJECT_PATH")) }
+      assert_match(/CI_PROJECT_PATH/, err.message)
     end
 
     def test_main_deploy_omits_mr_iid_when_unset

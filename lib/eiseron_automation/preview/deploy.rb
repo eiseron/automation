@@ -253,7 +253,18 @@ module EiseronAutomation
       def db_url_scheme = @env.fetch("EISERON_PREVIEW_DB_URL_SCHEME", "ecto")
       def health_path = @env.fetch("EISERON_PREVIEW_HEALTH_PATH", "/healthz")
       def service = @env.fetch("EISERON_PREVIEW_SERVICE", app)
-      def migrate_command = @env.fetch("EISERON_PREVIEW_MIGRATE_COMMAND", "mix ecto.migrate")
+
+      def migrate_command
+        @env.fetch("EISERON_PREVIEW_MIGRATE_COMMAND") { default_migrate_command }
+      end
+
+      def default_migrate_command
+        release_module = @env["PROD_RELEASE_MODULE"].to_s
+        return "mix ecto.migrate" if release_module.empty?
+
+        "mix run --no-start -e '#{release_module}.Release.setup'"
+      end
+
       def compose_template_path = require_env("EISERON_PREVIEW_COMPOSE_TEMPLATE")
 
       def require_env(name)

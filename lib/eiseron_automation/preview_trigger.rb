@@ -33,7 +33,8 @@ module EiseronAutomation
         "PREVIEW_KIND" => kind,
         "PREVIEW_REF" => ref,
         "PREVIEW_IMAGE_REPO" => "#{require_env('CI_REGISTRY_IMAGE')}/preview",
-        "PREVIEW_SHA" => require_env("CI_COMMIT_SHA")
+        "PREVIEW_SHA" => require_env("CI_COMMIT_SHA"),
+        "PREVIEW_PROJECT_PATH" => require_env("CI_PROJECT_PATH")
       }
       iid = mr_iid(kind)
       iid.empty? ? base : base.merge("PREVIEW_MR_IID" => iid)
