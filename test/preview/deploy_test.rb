@@ -225,6 +225,26 @@ module EiseronAutomation
         assert_match(/EISERON_PREVIEW_COMPOSE_TEMPLATE/, err.message)
       end
 
+      def test_app_name_falls_back_to_prod_slug_when_not_set
+        ssh = FakeSsh.new
+        env = base_env.except("EISERON_PREVIEW_APP_NAME").merge("PROD_SLUG" => "acme")
+        with_compose_template("x:\n") { deploy(env: env, ssh: ssh) }
+        assert_includes ssh.scripts.join, "DB_USER='acme_feat-foo_admin'"
+      end
+
+      def test_app_name_override_takes_precedence_over_prod_slug
+        ssh = FakeSsh.new
+        env = base_env.merge("PROD_SLUG" => "acme")
+        with_compose_template("x:\n") { deploy(env: env, ssh: ssh) }
+        assert_includes ssh.scripts.join, "DB_USER='app_feat-foo_admin'"
+      end
+
+      def test_requires_app_name_or_prod_slug
+        env = base_env.except("EISERON_PREVIEW_APP_NAME")
+        err = assert_raises(Error) { deploy(env: env) }
+        assert_match(/PROD_SLUG/, err.message)
+      end
+
       def test_health_path_can_be_overridden
         ssh = FakeSsh.new
         runner = FakeRunner.new(curl_status: "503")

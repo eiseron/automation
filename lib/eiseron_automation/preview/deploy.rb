@@ -242,7 +242,7 @@ module EiseronAutomation
       def shared_admin_role = Names.shared_admin_role(app)
       def image = "#{require_env('PREVIEW_IMAGE_REPO')}:#{ref}"
       def health_url = "https://#{ref}-#{require_env('PREVIEW_DOMAIN_BASE')}#{health_path}"
-      def app = require_env("EISERON_PREVIEW_APP_NAME")
+      def app = @env.fetch("EISERON_PREVIEW_APP_NAME") { require_env("PROD_SLUG") }
       def ref = require_env("PREVIEW_REF")
       def kind = require_in("PREVIEW_KIND", %w[mr main])
       def shared_user = require_env("SHARED_PG_USER")
